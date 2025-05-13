@@ -3,7 +3,7 @@ from django.db import models
 from django.forms import ValidationError
 import uuid
 from django.db import models
-
+from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
 def validate_age(value):
     if value > 150:
@@ -29,15 +29,6 @@ CATEGORY_CHOICES = [
     ('Ultrasound', 'Ultrasound'),
 ]
 
-class CenterDetail(models.Model):
-    center_name = models.CharField(max_length=30)
-    address = models.CharField(max_length=50)
-    owner_name = models.CharField(max_length=30)
-    owner_phone= models.CharField(max_length=15, unique=True)
-
-
-    def __str__(self):
-        return self.center_name
 class Doctor(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail")
     first_name = models.CharField(max_length=30)

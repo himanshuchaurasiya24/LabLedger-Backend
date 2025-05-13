@@ -8,7 +8,7 @@ from django.contrib.auth.models import BaseUserManager
 
 from django.contrib.auth.models import BaseUserManager
 
-from diagnosis.models import CenterDetail
+from center_detail.models import CenterDetail
 
 
 class StaffAccountManager(BaseUserManager):

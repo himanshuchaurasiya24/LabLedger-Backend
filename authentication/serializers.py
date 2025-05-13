@@ -5,7 +5,7 @@ from authentication.models import StaffAccount
 
 from rest_framework import serializers
 from authentication.models import StaffAccount
-from center_details.serializers import CenterDetailSerializer
+from center_detail.serializers import CenterDetailSerializer
 
 class StaffAccountSerializer(serializers.ModelSerializer):
     center_detail = CenterDetailSerializer(read_only = True)
