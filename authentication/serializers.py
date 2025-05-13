@@ -5,11 +5,13 @@ from authentication.models import StaffAccount
 
 from rest_framework import serializers
 from authentication.models import StaffAccount
+from center_details.serializers import CenterDetailSerializer
 
 class StaffAccountSerializer(serializers.ModelSerializer):
+    center_detail = CenterDetailSerializer(read_only = True)
     class Meta:
         model = StaffAccount
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'is_admin','center_name', 'password']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'is_admin','center_detail', 'password']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -20,7 +22,6 @@ class StaffAccountSerializer(serializers.ModelSerializer):
             last_name=validated_data['last_name'],
             phone_number=validated_data['phone_number'],
             address=validated_data['address'],
-            center_name=validated_data['center_name'],
             is_admin=validated_data.get('is_admin', False),
             is_staff=validated_data.get('is_admin', False),
             is_superuser=validated_data.get('is_admin', False)

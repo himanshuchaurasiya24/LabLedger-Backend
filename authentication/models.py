@@ -7,8 +7,10 @@ from django.contrib.auth.models import BaseUserManager
 
 from django.contrib.auth.models import BaseUserManager
 
+from center_details.models import CenterDetail
+
 class StaffAccountManager(BaseUserManager):
-    def create_user(self, username, email, password,first_name='enter first_name', last_name='enter last_name', phone_number='0000000000', address='enter address',center_name='enter center name'):
+    def create_user(self, username, email, password,first_name='enter first_name', last_name='enter last_name', phone_number='0000000000', address='enter address'):
         if not email:
             raise ValueError("Users must have an email address")
         if not username:
@@ -23,8 +25,6 @@ class StaffAccountManager(BaseUserManager):
             raise ValueError("Users must have a phone number")
         if not address:
             raise ValueError("Users must have an address")
-        if not center_name:
-            raise ValueError("Users must have a center name")
         user = self.model(
             username=username,
             email=self.normalize_email(email),
@@ -32,14 +32,13 @@ class StaffAccountManager(BaseUserManager):
             last_name=last_name,
             phone_number=phone_number,
             address=address,
-            center_name=center_name,
             is_admin=False
         )
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email,password, first_name='enter first_name', last_name='enter last_name', phone_number='0000000000', address='enter address',center_name='enter center name'):
+    def create_superuser(self, username, email,password, first_name='enter first_name', last_name='enter last_name', phone_number='0000000000', address='enter address'):
         if not password:
             raise ValueError("Superusers must provide a password")
         if not username:
@@ -54,8 +53,6 @@ class StaffAccountManager(BaseUserManager):
             raise ValueError("Superusers must have a phone number")
         if not address:
             raise ValueError("Superusers must have an address")
-        if not center_name:
-            raise ValueError("Superusers must have a center name")
         
         user = self.create_user(
             username=username,
@@ -64,7 +61,6 @@ class StaffAccountManager(BaseUserManager):
             last_name=last_name,
             phone_number=phone_number,
             address=address,
-            center_name=center_name,
             password=password
         )
         user.is_admin = True
@@ -92,12 +88,17 @@ class StaffAccount(AbstractUser):
     email = models.EmailField(unique=True, blank=True, null=False)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    is_staff = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=True)
     address = models.CharField(max_length=100)
     is_admin = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15, unique=True)
-    center_name = models.CharField(max_length=50)
+    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name='center_detail', blank=True, null=True)
     objects = StaffAccountManager()
+
 
     def __str__(self):
         return self.username
+    
+
+
+    
