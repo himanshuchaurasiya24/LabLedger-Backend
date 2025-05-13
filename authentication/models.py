@@ -1,3 +1,4 @@
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
@@ -7,7 +8,8 @@ from django.contrib.auth.models import BaseUserManager
 
 from django.contrib.auth.models import BaseUserManager
 
-from center_details.models import CenterDetail
+from diagnosis.models import CenterDetail
+
 
 class StaffAccountManager(BaseUserManager):
     def create_user(self, username, email, password,first_name='enter first_name', last_name='enter last_name', phone_number='0000000000', address='enter address'):
@@ -72,7 +74,6 @@ class StaffAccountManager(BaseUserManager):
 
 
 
-from django.contrib.auth.models import AbstractUser
 
 class StaffAccount(AbstractUser):
     username = models.CharField(
@@ -92,7 +93,7 @@ class StaffAccount(AbstractUser):
     address = models.CharField(max_length=100)
     is_admin = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15, unique=True)
-    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name='center_detail', blank=True, null=True)
+    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name='center_detail_staff', blank=True, null=True)
     objects = StaffAccountManager()
 
 
