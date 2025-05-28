@@ -87,8 +87,8 @@ class Bill(models.Model):
     )
     date_of_bill = models.DateTimeField(default=timezone.now)
     bill_status = models.CharField(choices=bill_status_choices, max_length=15)
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    paid_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True)
     disc_by_center = models.IntegerField(default=0)
     disc_by_doctor = models.IntegerField(default=0)
     incentive_amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -99,12 +99,15 @@ class Bill(models.Model):
     def save(self, *args, **kwargs):
         if not self.bill_number:
             now = timezone.now()
-            timestamp = now.strftime('%Y%m%d%H%M%S%f')  # e.g., 20250528161530234567
+            timestamp = now.strftime('%Y%m%d%H%M%S%f')
             self.bill_number = f"LL{timestamp}"
+
+    # Always set total_amount from diagnosis price, overwrite any manual value
+        if self.test_type:
+            self.total_amount = self.test_type.price
+
         super().save(*args, **kwargs)
 
-    def __str__(self):
-        return self.bill_number
 class Report(models.Model):
     bill = models.ForeignKey(Bill, on_delete=models.CASCADE, related_name="report")
     report_file = models.FileField(upload_to='reports/')
