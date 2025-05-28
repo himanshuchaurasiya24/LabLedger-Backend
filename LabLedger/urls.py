@@ -8,6 +8,9 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView
 )
 
+from django.conf import settings
+from django.conf.urls.static import static
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('authentication.urls')),  # Include authentication URLs
@@ -16,3 +19,4 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Refresh access token
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),  # Verify if token is valid
 ]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

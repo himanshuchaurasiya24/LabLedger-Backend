@@ -1,3 +1,4 @@
+import os
 from django.utils import timezone
 from django.db import models
 from django.forms import ValidationError
@@ -5,6 +6,14 @@ import uuid
 from django.db import models
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
+
+def report_file_upload_path(instance, filename):
+    # Get the file extension
+    ext = filename.split('.')[-1]
+    # Create new filename using bill number
+    filename = f"{instance.bill.bill_number}.{ext}"
+    # Return the full path
+    return os.path.join('reports/', filename)
 def validate_age(value):
     if value > 150:
         raise ValidationError("Age cannot exceed 150 years.")
@@ -107,23 +116,43 @@ class Bill(models.Model):
             self.total_amount = self.test_type.price
 
         super().save(*args, **kwargs)
+    def __str__(self):
+        return f"{self.bill_number} {self.patient_name} {self.patient_age} {self.patient_sex} Ref by Dr. {self.referred_by_doctor.first_name} {self.referred_by_doctor.last_name}"
+    
 
 class Report(models.Model):
     bill = models.ForeignKey(Bill, on_delete=models.CASCADE, related_name="report")
-    report_file = models.FileField(upload_to='reports/')
+    report_file = models.FileField(upload_to=report_file_upload_path, blank=False, null=False)
 
     def __str__(self):
-        return f"Report for {self.bill.bill_number} - {self.report_status}"
+        return f"{self.bill.date_of_bill.strftime('%d-%m-%Y')} Report for {self.bill.patient_name} Ref by Dr. {self.bill.referred_by_doctor.first_name} {self.bill.referred_by_doctor.last_name}"
+
     def save(self, *args, **kwargs):
-        if not self.report_file:
-            raise ValidationError("Report file cannot be empty.")
+        # Only attempt to get the old file if the instance already exists
+        if self.pk:
+            try:
+                old_file = Report.objects.get(pk=self.pk).report_file
+            except Report.DoesNotExist:
+                old_file = None
+        else:
+            old_file = None
+
         super().save(*args, **kwargs)
+
+        # After saving, delete the old file if it's different from the new file
+        if old_file and old_file != self.report_file:
+            if old_file.name and os.path.isfile(old_file.path):
+                try:
+                    os.remove(old_file.path)
+                except Exception as e:
+                    print(f"Failed to delete old file: {e}")
+
     def clean(self):
         if not self.report_file:
             raise ValidationError("Report file cannot be empty.")
         if self.report_file.size > 8 * 1024 * 1024:
             raise ValidationError("Report file size cannot exceed 8 MB.")
-        if not self.report_file.name.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+        if not self.report_file.name.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png')):
             raise ValidationError("Report file must be a PDF, JPG, JPEG, or PNG.")
         super().clean()
 
