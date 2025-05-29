@@ -26,7 +26,7 @@ SEX_CHOICES = [
 ("Female", "Female"),
 ("Others", "Others"),
 ]   
-bill_status_choices = [
+BILL_STATUS_CHOICES = [
     ('Paid', 'Paid'),
     ('Partially Paid', 'Partially Paid'),
     ('Unpaid', 'Unpaid'),
@@ -95,7 +95,7 @@ class Bill(models.Model):
         Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name="referred_patients_by_doctor"
     )
     date_of_bill = models.DateTimeField(default=timezone.now)
-    bill_status = models.CharField(choices=bill_status_choices, max_length=15)
+    bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, editable=False)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True)
     disc_by_center = models.IntegerField(default=0)
