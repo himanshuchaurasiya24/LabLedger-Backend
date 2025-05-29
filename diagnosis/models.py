@@ -71,7 +71,7 @@ class Doctor(models.Model):
 
 
 class DiagnosisType(models.Model):
-    
+    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_diagnosis")
     name = models.CharField(max_length=255)
     category = models.CharField(choices=CATEGORY_CHOICES, max_length=50)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -123,7 +123,7 @@ class Bill(models.Model):
 class Report(models.Model):
     bill = models.ForeignKey(Bill, on_delete=models.CASCADE, related_name="report")
     report_file = models.FileField(upload_to=report_file_upload_path, blank=False, null=False)
-
+    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_report")
     def __str__(self):
         return f"{self.bill.date_of_bill.strftime('%d-%m-%Y')} Report for {self.bill.patient_name} Ref by Dr. {self.bill.referred_by_doctor.first_name} {self.bill.referred_by_doctor.last_name}"
 
