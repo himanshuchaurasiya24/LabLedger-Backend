@@ -30,12 +30,10 @@ A modern desktop application for Windows, built with **Flutter** and **Django RE
 
 ### 1. Backend Setup (Django)
 ```bash
-git clone https://github.com/yourusername/yourproject.git](https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
+git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
 cd LabLedger-Backend
-
 python -m venv env
-env\Scripts\activate  # On Windows
-
+env\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
