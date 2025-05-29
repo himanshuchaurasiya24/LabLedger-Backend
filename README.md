@@ -1,29 +1,42 @@
-﻿# Diagnostic Center Report & Incentive Software Backend
+# 🧪 Diagnostic Center Report & Incentive Software (Windows)
 
-This is a diagnostic center report generation and incentive management software built using Flutter (frontend) and Django REST framework (backend).
+A modern desktop application for Windows, built with **Flutter** and **Django REST Framework**, designed to streamline diagnostic report generation and manage staff incentives efficiently.
 
-## Features
+---
 
-- Generate detailed diagnostic reports
-- Manage incentives for staff and departments
-- RESTful API backend with Django
-- Cross-platform mobile app with Flutter
+## 🚀 Features
 
-## Installation
+- 📄 Generate and manage diagnostic test reports
+- 💰 Calculate and track staff incentives
+- 🔐 Role-based access (admin, doctor, lab staff)
+- 📁 Export reports in PDF format
+- 🖥️ Optimized for Windows Desktop
+- ⚙️ Fast REST API backend with Django
 
-*Instructions for installing the project locally, dependencies, etc.*
+---
 
-## Usage
+## 🛠️ Tech Stack
 
-*How to run and use the software.*
+| Layer      | Technology                  |
+|------------|------------------------------|
+| Frontend   | Flutter (Windows Desktop)    |
+| Backend    | Django REST Framework (Python) |
+| Database   | SQLite / PostgreSQL          |
+| Auth       | Django Authentication / JWT  |
 
-## Contributing
+---
 
-Contributions are welcome! Please open issues or submit pull requests.
+## 🧩 Installation Instructions
 
-## License
+### 1. Backend Setup (Django)
+```bash
+git clone https://github.com/yourusername/yourproject.git
+cd yourproject/backend
 
-This project is licensed under the [Apache License 2.0](./LICENSE).
+python -m venv env
+env\Scripts\activate  # On Windows
 
-© 2025 Himanshu Chaurasiya
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 
