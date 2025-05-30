@@ -5,5 +5,5 @@ router = DefaultRouter()
 router.register(r'bill', BillViewset)
 
 urlpatterns = [
-    path('bill/', include(router.urls)),
+    path('bills/', include(router.urls)),
 ]
