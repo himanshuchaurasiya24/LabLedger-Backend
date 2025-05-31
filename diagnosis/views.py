@@ -11,3 +11,9 @@ class BillViewset(viewsets.ModelViewSet):
     serializer_class= BillSerializer
     authentication_classes= [JWTAuthentication]
     permission_classes= [permissions.IsAuthenticated]
+
+class ReportViewset(viewsets.ModelViewSet):
+    queryset = Report.objects.all()
+    serializer_class= ReportSerializer
+    authentication_classes= [JWTAuthentication]
+    permission_classes= [permissions.IsAuthenticated]
