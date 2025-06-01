@@ -2,10 +2,9 @@ import os
 from django.utils import timezone
 from django.db import models
 from django.forms import ValidationError
-from django.db import models
+from django.core.validators import RegexValidator
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
-# 
 def report_file_upload_path(instance, filename):
     # Get the file extension
     ext = filename.split('.')[-1]
@@ -42,7 +41,7 @@ class Doctor(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     address = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=15, unique=True)
+    phone_number = models.CharField(max_length=15, unique=True, validators=[RegexValidator()])
     ultrasound_percentage = models.PositiveIntegerField(default=50,
        validators=[
            validate_incentive_percentage
@@ -70,12 +69,6 @@ class Doctor(models.Model):
         ]
     )
 
-    def save(self, *args, **kwargs):
-        if len(self.phone_number) < 10 or len(self.phone_number) > 15:
-            raise ValidationError(
-                f"Phone number must be between 10 and 15 digits."
-            )
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} {self.address} {self.phone_number}"

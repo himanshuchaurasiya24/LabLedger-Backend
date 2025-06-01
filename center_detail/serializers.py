@@ -4,4 +4,5 @@ from rest_framework import serializers
 class CenterDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CenterDetail
-        fields = "__all__"
+        # fields = ['id', 'center_name']
+        fields = '__all__'

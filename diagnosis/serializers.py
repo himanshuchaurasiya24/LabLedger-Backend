@@ -4,17 +4,24 @@ from rest_framework import serializers
 from .models import *
 
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
+    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
+    center_detail_output = CenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = DiagnosisType
-        fields = '__all__'
+        fields ='__all__'
 class StaffAccountSerializer(serializers.ModelSerializer):    
     class Meta:
         model = StaffAccount
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address']
+        fields = ['id',  'first_name', 'last_name']
 class DoctorSerializer(serializers.ModelSerializer):
+    center_detail = serializers.PrimaryKeyRelatedField(
+        queryset=CenterDetail.objects.all(),
+        write_only=True
+    )
+    center_detail_output = CenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = Doctor
-        fields = ['id', 'first_name', 'last_name', 'address', 'phone_number', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage']
+        fields = "__all__"
 class BillSerializer(serializers.ModelSerializer):
     diagnosis_type = DiagnosisTypeSerializer(read_only=True)
     test_done_by = StaffAccountSerializer(read_only=True)
@@ -28,7 +35,8 @@ class BillSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'bill_number',
             'total_amount',
-            'incentive_amount',
+            'date_of_test',
+
         )
 class ReportSerializer(serializers.ModelSerializer):
     class Meta:
