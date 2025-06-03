@@ -25,7 +25,7 @@ SEX_CHOICES = [
 ("Others", "Others"),
 ]   
 BILL_STATUS_CHOICES = [
-    ('Paid', 'Paid'),
+    ('Fully Paid', 'Fully Paid'),
     ('Partially Paid', 'Partially Paid'),
     ('Unpaid', 'Unpaid'),
 ]
@@ -95,7 +95,7 @@ class Bill(models.Model):
         Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name="referred_patients_by_doctor"
     )
     date_of_bill = models.DateTimeField(default=timezone.now)
-    bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15)
+    bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15, default='Fully Paid')
     total_amount = models.IntegerField(editable=False)  # set from diagnosis_type.price, no manual input
     paid_amount = models.IntegerField(blank=True, default=0)
     disc_by_center = models.IntegerField(default=0)
@@ -104,15 +104,30 @@ class Bill(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_bill")
 
     def clean(self):
-        total = int(self.total_amount or 0)
+        total = int(self.diagnosis_type.price or 0)
         paid = int(self.paid_amount or 0)
+        bill_status = self.bill_status
+        diagnosis_type = self.diagnosis_type
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
-
-        if total != paid + center_disc + doctor_disc:
-            raise ValidationError({
-                'paid_amount': f"Total amount ({total}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc})."
-            })
+        if not diagnosis_type:
+            raise ValidationError("Diagnosis type must be selected.")
+        else:
+            if bill_status not in dict(BILL_STATUS_CHOICES):
+                raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")
+            if bill_status == 'Fully Paid' and total != paid+center_disc + doctor_disc:
+                raise ValidationError({
+                    'paid_amount': f"Total amount ({total}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
+                })
+            if bill_status == 'Partially Paid' and total >= paid + center_disc + doctor_disc:
+                raise ValidationError({
+                    'paid_amount': f"Total amount ({total}) must not be greater than or equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a partially paid bill."
+                })
+            if bill_status == 'Unpaid' and (paid > 0 or center_disc > 0 or doctor_disc > 0):
+                raise ValidationError({
+                    'paid_amount': "For an unpaid bill, paid amount, center discount, and doctor discount must all be zero."
+                })
+            
 
     def save(self, *args, **kwargs):
         if not self.bill_number:
@@ -122,16 +137,15 @@ class Bill(models.Model):
 
         if self.diagnosis_type:
             self.total_amount = int(self.diagnosis_type.price)
-
         # Validate fields first — this will trigger `clean()`
         self.full_clean()
 
         # Calculate incentive
         total = int(self.total_amount or 0)
+        print(f"price: {self.diagnosis_type.price}")
         paid = int(self.paid_amount or 0)
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
-
         doctor_incentive = 0
         if self.referred_by_doctor and self.diagnosis_type:
             doctor = self.referred_by_doctor
@@ -158,6 +172,7 @@ class Bill(models.Model):
         self.incentive_amount = doctor_incentive
 
         super().save(*args, **kwargs)
+    
     def __str__(self):
         return f"{self.bill_number} {self.patient_name} {self.patient_age} {self.patient_sex} Ref by Dr. {self.referred_by_doctor.first_name} {self.referred_by_doctor.last_name}"
     

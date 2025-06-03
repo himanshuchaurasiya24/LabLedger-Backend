@@ -20,14 +20,14 @@ class CenterDetailFilterMixin:
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
-    
-    
-class DoctorViewSet(viewsets.ModelViewSet):
+
+
+class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset= Doctor.objects.all()
     serializer_class = DoctorSerializer
     authentication_classes= [JWTAuthentication ]
     permission_classes = [IsAdminUser,permissions.IsAuthenticated]
-class DiagnosisTypeViewSet(viewsets.ModelViewSet):
+class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
     serializer_class = DiagnosisTypeSerializer
     authentication_classes = [JWTAuthentication]

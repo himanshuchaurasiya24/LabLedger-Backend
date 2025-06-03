@@ -29,12 +29,11 @@ class BillSerializer(serializers.ModelSerializer):
     center_detail = CenterDetailSerializer(read_only=True)
     class Meta:
         model = Bill
-        # All fields you want to expose:
+        # fields to expose:
         fields = '__all__'
         # Make these read-only:
         read_only_fields = (
             'bill_number',
-            'total_amount',
             'date_of_test',
 
         )
