@@ -177,7 +177,7 @@ class Bill(models.Model):
         return f"{self.bill_number} {self.patient_name} {self.patient_age} {self.patient_sex} Ref by Dr. {self.referred_by_doctor.first_name} {self.referred_by_doctor.last_name}"
     
 
-class Report(models.Model):
+class PatientReport(models.Model):
     bill = models.ForeignKey(Bill, on_delete=models.CASCADE, related_name="report")
     report_file = models.FileField(upload_to=report_file_upload_path, blank=False, null=False)
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_report")
@@ -188,8 +188,8 @@ class Report(models.Model):
         # Only attempt to get the old file if the instance already exists
         if self.pk:
             try:
-                old_file = Report.objects.get(pk=self.pk).report_file
-            except Report.DoesNotExist:
+                old_file = PatientReport.objects.get(pk=self.pk).report_file
+            except PatientReport.DoesNotExist:
                 old_file = None
         else:
             old_file = None

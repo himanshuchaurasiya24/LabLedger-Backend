@@ -37,8 +37,8 @@ class BillSerializer(serializers.ModelSerializer):
             'date_of_test',
 
         )
-class ReportSerializer(serializers.ModelSerializer):
+class PatientReportSerializer(serializers.ModelSerializer):
     class Meta:
-        model= Report
+        model= PatientReport
         fields = '__all__'
    

@@ -19,6 +19,20 @@ class StaffAccountViewSet(viewsets.ModelViewSet):
         if self.action == 'create':  # Restrict user creation to admins only
             return [IsAdminUser()]
         return super().get_permissions()
+    def update(self, request, *args, **kwargs):
+        # Allow only admins to update user details
+        if not request.user.is_admin and request.user != self.get_object():
+            return Response(
+                {"error": "You do not have permission to update other user details."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        if request.user != self.get_object() and not request.user.is_admin:
+            return Response(
+                {"error": "You can only update your own details."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
     
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):

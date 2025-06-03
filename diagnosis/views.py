@@ -41,8 +41,8 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
-class ReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Report.objects.all()
-    serializer_class = ReportSerializer
+class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    queryset = PatientReport.objects.all()
+    serializer_class = PatientReportSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
