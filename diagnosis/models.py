@@ -80,7 +80,7 @@ class DiagnosisType(models.Model):
     category = models.CharField(choices=CATEGORY_CHOICES, max_length=50)
     price = models.IntegerField()
     def __str__(self):
-        return f"{self.category} - {self.name} - {self.price}"
+        return f"{self.category} - {self.name} - {self.price} - {self.center_detail.center_name}"
 
 
 class Bill(models.Model):
