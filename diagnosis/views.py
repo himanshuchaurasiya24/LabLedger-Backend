@@ -40,12 +40,14 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def perform_create(self, serializer):
-        serializer.save(
-            test_done_by=self.request.user,
-            center_detail=self.request.user.center_detail
-        )
+        user = self.request.user
+        serializer.save(test_done_by=user, center_detail=user.center_detail)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        serializer.save(test_done_by=user, center_detail=user.center_detail)
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()

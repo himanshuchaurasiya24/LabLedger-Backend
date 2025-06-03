@@ -30,10 +30,19 @@ class DoctorSerializer(serializers.ModelSerializer):
 
 
 class BillSerializer(serializers.ModelSerializer):
-    diagnosis_type = MinimalDiagnosisTypeSerializer(read_only=True)
+    # INPUT fields (writeable)
+    diagnosis_type = serializers.PrimaryKeyRelatedField(queryset=DiagnosisType.objects.all(), write_only=True)
+    referred_by_doctor = serializers.PrimaryKeyRelatedField(
+        queryset=Doctor.objects.all(), write_only=True, required=False, allow_null=True
+    )
+
+    # OUTPUT fields (read-only nested)
+    diagnosis_type_output = MinimalDiagnosisTypeSerializer(source='diagnosis_type', read_only=True)
+    referred_by_doctor_output = MinimalDoctorSerializer(source='referred_by_doctor', read_only=True)
+
     test_done_by = MinimalStaffAccountSerializer(read_only=True)
-    referred_by_doctor = MinimalDoctorSerializer(read_only=True)
     center_detail = MinimalCenterDetailSerializer(read_only=True)
+
     class Meta:
         model = Bill
         fields = '__all__'
@@ -42,7 +51,29 @@ class BillSerializer(serializers.ModelSerializer):
             'date_of_test',
             'test_done_by',
             'center_detail',
+            'incentive_amount',
+            'total_amount',
         )
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        user_center = user.center_detail
+
+        diagnosis_type = attrs.get('diagnosis_type')
+        if diagnosis_type and diagnosis_type.center_detail != user_center:
+            raise serializers.ValidationError({
+                'diagnosis_type': 'Diagnosis type must belong to your center.'
+            })
+
+        referred_by_doctor = attrs.get('referred_by_doctor')
+        if referred_by_doctor and referred_by_doctor.center_detail != user_center:
+            raise serializers.ValidationError({
+                'referred_by_doctor': 'Doctor must belong to your center.'
+            })
+
+        return attrs
+
+
 class PatientReportSerializer(serializers.ModelSerializer):
     class Meta:
         model= PatientReport

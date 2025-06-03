@@ -3,11 +3,18 @@ from django.contrib import admin
 from diagnosis.models import *
 
 class DoctorAdmin(admin.ModelAdmin):
-    list_display= ('first_name','last_name','phone_number','address')
+    list_display= ('first_name','last_name','phone_number','address', 'center_detail')
     ordering = ['first_name']
 class BillAdmin(admin.ModelAdmin):
     ordering = ['bill_number']
+    list_display= ('bill_number', 'patient_name', 'total_amount', 'incentive_amount', 'test_done_by', 'center_detail')
     readonly_fields = ('bill_number', 'total_amount', 'incentive_amount')
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'test_done_by':
+            # Limit to doctors with the same center as the user
+            user_center = request.user.center_detail
+            kwargs["queryset"] = Doctor.objects.filter(center_detail=user_center)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
     # exclude will not show these fields in the admin form
     # exclude = ('center_detail', 'test_done_by')
     # this will prefill the fields with the user center_detail and test_done_by
@@ -23,6 +30,8 @@ class BillAdmin(admin.ModelAdmin):
         if not change:
             obj.test_done_by = request.user
             obj.center_detail = request.user.center_detail
+        if obj.test_done_by.center_detail != obj.center_detail:
+            raise ValidationError("Doctor's center must match the bill's center.")
         super().save_model(request, obj, form, change)
 
     
