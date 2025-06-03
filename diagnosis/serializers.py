@@ -1,41 +1,47 @@
-from center_detail.serializers import CenterDetailSerializer
+from authentication.serializers import *
+from center_detail.serializers import *
 from .models import *
 from rest_framework import serializers
 from .models import *
 
+class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiagnosisType
+        fields = ['id', 'name', 'category', 'price']
+class MinimalDoctorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Doctor
+        fields= ['id','first_name', 'last_name', 'address']
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
     center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
-    center_detail_output = CenterDetailSerializer(read_only=True, source='center_detail')
+    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = DiagnosisType
         fields ='__all__'
-class StaffAccountSerializer(serializers.ModelSerializer):    
-    class Meta:
-        model = StaffAccount
-        fields = ['id',  'first_name', 'last_name']
+
+
 class DoctorSerializer(serializers.ModelSerializer):
-    center_detail = serializers.PrimaryKeyRelatedField(
-        queryset=CenterDetail.objects.all(),
-        write_only=True
-    )
-    center_detail_output = CenterDetailSerializer(read_only=True, source='center_detail')
+    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
+    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = Doctor
         fields = "__all__"
+        read_only_fields = ['id']
+
+
 class BillSerializer(serializers.ModelSerializer):
-    diagnosis_type = DiagnosisTypeSerializer(read_only=True)
-    test_done_by = StaffAccountSerializer(read_only=True)
-    referred_by_doctor = DoctorSerializer(read_only=True)
-    center_detail = CenterDetailSerializer(read_only=True)
+    diagnosis_type = MinimalDiagnosisTypeSerializer(read_only=True)
+    test_done_by = MinimalStaffAccountSerializer(read_only=True)
+    referred_by_doctor = MinimalDoctorSerializer(read_only=True)
+    center_detail = MinimalCenterDetailSerializer(read_only=True)
     class Meta:
         model = Bill
-        # fields to expose:
         fields = '__all__'
-        # Make these read-only:
         read_only_fields = (
             'bill_number',
             'date_of_test',
-
+            'test_done_by',
+            'center_detail',
         )
 class PatientReportSerializer(serializers.ModelSerializer):
     class Meta:

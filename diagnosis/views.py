@@ -10,7 +10,7 @@ class CenterDetailFilterMixin:
         model = self.queryset.model
         if self.request.user.center_detail is None:
             return model.objects.none()
-        return model.objects.filter(center_detail=self.request_detail)
+        return model.objects.filter(center_detail=self.request.user.center_detail)
 
     @property
     def request_detail(self):
@@ -40,6 +40,12 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    
+    def perform_create(self, serializer):
+        serializer.save(
+            test_done_by=self.request.user,
+            center_detail=self.request.user.center_detail
+        )
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()

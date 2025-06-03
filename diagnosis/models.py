@@ -90,7 +90,7 @@ class Bill(models.Model):
     patient_age = models.PositiveIntegerField(validators=[validate_age])
     patient_sex = models.CharField(choices=SEX_CHOICES, max_length=10)
     diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name="diagnosis_type")
-    test_done_by = models.ForeignKey(StaffAccount, on_delete=models.CASCADE, related_name="test_done_by")
+    test_done_by = models.ForeignKey(StaffAccount, on_delete=models.CASCADE, related_name="test_done_by", null=True, blank=True)
     referred_by_doctor = models.ForeignKey(
         Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name="referred_patients_by_doctor"
     )
@@ -112,6 +112,7 @@ class Bill(models.Model):
         doctor_disc = int(self.disc_by_doctor or 0)
         if not diagnosis_type:
             raise ValidationError("Diagnosis type must be selected.")
+        
         else:
             if bill_status not in dict(BILL_STATUS_CHOICES):
                 raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")

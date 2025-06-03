@@ -29,6 +29,10 @@ class StaffAccountSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
+class MinimalStaffAccountSerializer(serializers.ModelSerializer):    
+    class Meta:
+        model = StaffAccount
+        fields = ['id',  'first_name', 'last_name']
 
 
 class PasswordResetSerializer(serializers.Serializer):
