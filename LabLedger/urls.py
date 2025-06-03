@@ -14,7 +14,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('auth/', include('authentication.urls')),  # Include authentication URLs
-    path('cd/', include('center_detail.urls')),  # Include center_detail URLs
+    path('center-details/', include('center_detail.urls')),  # Include center_detail URLs
     path('diagnosis/', include('diagnosis.urls')),  # Include diagnosis URLs
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  # Get access & refresh tokens
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Refresh access token
