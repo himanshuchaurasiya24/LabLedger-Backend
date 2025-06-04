@@ -5,11 +5,12 @@ from authentication.serializers import StaffAccountSerializer,PasswordResetSeria
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from diagnosis.views import CenterDetailFilterMixin
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
 
-class StaffAccountViewSet(viewsets.ModelViewSet):
+class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = StaffAccount.objects.all()
     serializer_class = StaffAccountSerializer
     authentication_classes = [JWTAuthentication]

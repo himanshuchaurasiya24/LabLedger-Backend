@@ -112,23 +112,16 @@ class PatientReportSerializer(serializers.ModelSerializer):
 
         return attrs
 
-
 class SampleTestReportSerializer(serializers.ModelSerializer):
-    bill = MinimalBillSerializer(read_only=True)
-    diagnosis_type = MinimalDiagnosisTypeSerializer(read_only=True)
-    sample_report_file = serializers.FileField()
     class Meta:
         model = SampleTestReport
-        fields = '__all__'
+        fields = ['id', 'diagnosis_name', 'diagnosis_type', 'sample_report_file', 'center_detail']
 
     def validate(self, attrs):
-        user_center = self.context['request'].user.center_detail
-
-        if attrs.get('diagnosis_type') and attrs['diagnosis_type'].center_detail != user_center:
+        user_center = getattr(self.context['request'].user, 'center_detail', None)
+        if not user_center or attrs['center_detail'] != user_center:
             raise serializers.ValidationError({
-                'diagnosis_type': 'Sample test report must belong to your center.'
-            })
+                'center_detail': 'Sample test report must belong to your center.'
+    })
 
         return attrs
-
-   

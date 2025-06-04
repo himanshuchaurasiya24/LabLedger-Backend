@@ -6,12 +6,15 @@ from django.core.validators import RegexValidator
 from django.utils.text import slugify
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
+import os
+
+
 def sample_report_file_upload_path(instance, filename):
-    """Generate file path using diagnosis_name and diagnosis type."""
+    diagnosis_type_name = instance.diagnosis_type
     extension = os.path.splitext(filename)[1]  # Extract file extension
-    return f"sample_report_files/{instance.diagnosis_name}_{instance.diagnosis_type.name}{extension}"
-
-
+    original_filename = os.path.splitext(filename)[0]  # Get original name without extension
+    new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
+    return os.path.join("sample_reports", new_filename)
 def report_file_upload_path(instance, filename):
     # Get the file extension
     ext = filename.split('.')[-1]
@@ -243,27 +246,25 @@ class PatientReport(models.Model):
                 print(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
-
 class SampleTestReport(models.Model):
     diagnosis_name = models.CharField(max_length=255)
-    diagnosis_type= models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name="sample_test_report")
+    diagnosis_type = models.CharField(choices=CATEGORY_CHOICES, max_length=50)
     sample_report_file = models.FileField(upload_to=sample_report_file_upload_path, blank=False, null=False)
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_sample_test_report")
 
     def save(self, *args, **kwargs):
         if self.sample_report_file:
-            diagnosis_type_name = slugify(self.diagnosis_type.name)  # Convert name to safe format
-            extension = os.path.splitext(self.sample_report_file.name)[1]  # Extract file extension
-            original_filename = os.path.splitext(self.sample_report_file.name)[0]  # Get original name without extension
+            filename = self.sample_report_file.name
+            diagnosis_type_name = self.diagnosis_type
+            extension = os.path.splitext(filename)[1]  # Extract file extension
+            original_filename = os.path.splitext(filename)[0]  # Get original name without extension
             new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
-
+            
             # Ensure filename uniqueness by appending a number if a conflict exists
-            file_path = os.path.join("media/sample_reports/", new_filename)
             counter = 1
 
-            while os.path.exists(file_path):
+            while os.path.exists(os.path.join("media/sample_reports", new_filename)):
                 new_filename = f"{diagnosis_type_name}_{original_filename}_{counter}{extension}"
-                file_path = os.path.join("media/sample_reports/", new_filename)
                 counter += 1
 
             # Retrieve existing file if updating
@@ -276,17 +277,16 @@ class SampleTestReport(models.Model):
                     old_file = None
 
             # Assign unique filename before saving
-            self.sample_report_file.name = new_filename
+            self.sample_report_file.name = os.path.join("sample_reports", new_filename)
 
         super().save(*args, **kwargs)
 
         # Delete the old file if changed
-        if old_file and old_file != self.sample_report_file and os.path.isfile(old_file.path):
+        if old_file and old_file != self.sample_report_file and os.path.isfile(os.path.join("media", old_file.name)):
             try:
-                os.remove(old_file.path)
+                os.remove(os.path.join("media", old_file.name))
             except Exception as e:
                 print(f"Failed to delete old file: {e}")
-
 
     def clean(self):
         if not self.sample_report_file:
@@ -304,10 +304,12 @@ class SampleTestReport(models.Model):
         super().clean()
 
     def delete(self, *args, **kwargs):
-        if self.sample_report_file and os.path.isfile(self.sample_report_file.path):
+        if self.sample_report_file and os.path.isfile(os.path.join("media", self.sample_report_file.name)):
             try:
-                os.remove(self.sample_report_file.path)
+                os.remove(os.path.join("media", self.sample_report_file.name))
             except Exception as e:
                 print(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
+    def __str__(self):
+        return f"{self.diagnosis_name} - {self.diagnosis_type} - {self.center_detail.center_name}"

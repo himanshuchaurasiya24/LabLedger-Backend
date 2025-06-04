@@ -7,9 +7,6 @@ from .serializers import *
 import django_filters
 from .filters import *
 
-
-
-
 class CenterDetailFilterMixin:
     def get_queryset(self):
         model = self.queryset.model
@@ -37,10 +34,15 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['first_name', 'last_name', 'phone_number']
     def perform_create(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
+
 
     def perform_update(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
 
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
@@ -53,10 +55,15 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['name', 'description']
     def perform_create(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
+
 
     def perform_update(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
 
 
@@ -70,13 +77,17 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
     search_fields = ['bill_number', 'patient_name']
-
     def perform_create(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(test_done_by=user, center_detail=user.center_detail)
+
 
     def perform_update(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(test_done_by=user, center_detail=user.center_detail)
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
@@ -89,10 +100,15 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['patient_name', 'report_title']
     def perform_create(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
+
 
     def perform_update(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
 
 class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
@@ -102,11 +118,16 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = SampleTestReportFilter
-    search_fields = ['diagnosis_name', 'diagnosis_type__name', 'bill__bill_number']
+    search_fields = ["diagnosis_type", "diagnosis_name", "center_detail__name"]
     def perform_create(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
+
 
     def perform_update(self, serializer):
         user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
