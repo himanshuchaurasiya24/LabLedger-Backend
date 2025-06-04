@@ -98,12 +98,23 @@ class MinimalBillSerializer(serializers.ModelSerializer):
         fields = ['id', 'bill_number', 'patient_name', 'patient_age', 'patient_sex']
 
 class PatientReportSerializer(serializers.ModelSerializer):
-    bill = MinimalBillSerializer(read_only=True)
+    bill = serializers.PrimaryKeyRelatedField(queryset=Bill.objects.all(), write_only=True)
+    bill_output = MinimalBillSerializer(read_only=True, source='bill')
+    
+    # Make center_detail hidden and automatically assigned
+    center_detail = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+
     class Meta:
-        model= PatientReport
+        model = PatientReport
         fields = '__all__'
+
     def validate(self, attrs):
-        user_center = self.context['request'].user.center_detail
+        user = self.context['request'].user
+        user_center = user.center_detail
+
+        # Forcefully assign center_detail from user
+        attrs['center_detail'] = user_center
 
         if attrs.get('bill') and attrs['bill'].center_detail != user_center:
             raise serializers.ValidationError({
@@ -112,10 +123,13 @@ class PatientReportSerializer(serializers.ModelSerializer):
 
         return attrs
 
+
 class SampleTestReportSerializer(serializers.ModelSerializer):
+    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
+    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = SampleTestReport
-        fields = ['id', 'diagnosis_name', 'diagnosis_type', 'sample_report_file', 'center_detail']
+        fields = ['id', 'diagnosis_name', 'diagnosis_type', 'sample_report_file', 'center_detail','center_detail_output']
 
     def validate(self, attrs):
         user_center = getattr(self.context['request'].user, 'center_detail', None)

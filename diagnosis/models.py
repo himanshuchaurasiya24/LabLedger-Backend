@@ -15,6 +15,7 @@ def sample_report_file_upload_path(instance, filename):
     original_filename = os.path.splitext(filename)[0]  # Get original name without extension
     new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
     return os.path.join("sample_reports", new_filename)
+
 def report_file_upload_path(instance, filename):
     # Get the file extension
     ext = filename.split('.')[-1]
@@ -22,6 +23,7 @@ def report_file_upload_path(instance, filename):
     filename = f"{instance.bill.bill_number}.{ext}"
     # Return the full path
     return os.path.join('reports/', filename)
+
 def validate_age(value):
     if value > 150:
         raise ValidationError("Age cannot exceed 150 years.")
@@ -197,39 +199,32 @@ class PatientReport(models.Model):
 
     def save(self, *args, **kwargs):
         if self.report_file:
-            bill_number = self.bill.bill_number  # Get the unique bill number
-            extension = os.path.splitext(self.report_file.name)[1]  # Extract file extension
-            new_filename = f"{bill_number}{extension}"  # Construct new filename
+            bill_number = self.bill.bill_number
+            extension = os.path.splitext(self.report_file.name)[1]
+            new_filename = f"{bill_number}{extension}"
 
-            # Retrieve the existing file if this is an update
-            old_file = None
-            if self.pk:
-                try:
-                    old_instance = PatientReport.objects.get(pk=self.pk)
-                    old_file = old_instance.report_file
-                except PatientReport.DoesNotExist:
-                    old_file = None
-
-            # Rename file before saving
+            # Set new filename
             self.report_file.name = new_filename
+
+            # Delete any existing report for the same bill before saving
+            existing_reports = PatientReport.objects.filter(bill=self.bill).exclude(pk=self.pk)
+            for report in existing_reports:
+                if report.report_file and os.path.isfile(report.report_file.path):
+                    try:
+                        os.remove(report.report_file.path)
+                    except Exception as e:
+                        print(f"Failed to delete existing report file: {e}")
+                report.delete()
 
         super().save(*args, **kwargs)
 
-        # Delete old file if it's different from the new one
-        if old_file and old_file != self.report_file and os.path.isfile(old_file.path):
-            try:
-                os.remove(old_file.path)
-            except Exception as e:
-                print(f"Failed to delete old file: {e}")
-
-    from django.core.exceptions import ValidationError
 
     def clean(self):
         if not self.report_file:
             raise ValidationError("A report file is required.")
 
         file_size_limit = 8 * 1024 * 1024  # 8 MB size limit
-        allowed_formats = ('.pdf', '.jpg', '.jpeg', '.png')
+        allowed_formats = ('.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx')
 
         if self.report_file.size > file_size_limit:
             raise ValidationError(f"Report file exceeds the {file_size_limit // (1024*1024)}MB limit.")
