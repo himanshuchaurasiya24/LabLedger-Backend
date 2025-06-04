@@ -1,7 +1,7 @@
 import django_filters
 from django.utils.timezone import now, timedelta
 from calendar import monthrange
-from .models import Doctor, DiagnosisType, Bill, PatientReport
+from .models import Doctor, DiagnosisType, Bill, PatientReport, SampleTestReport
 
 # Doctor Filter
 class DoctorFilter(django_filters.FilterSet):
@@ -125,3 +125,11 @@ class PatientReportFilter(django_filters.FilterSet):
     class Meta:
         model = PatientReport
         fields = ['patient_name', 'report_type', 'start_date', 'end_date']
+
+class SampleTestReportFilter(django_filters.FilterSet):
+    bill_number = django_filters.CharFilter(field_name="bill__bill_number", lookup_expr="iexact")
+    diagnosis_name = django_filters.CharFilter(lookup_expr="icontains")  # Case-insensitive partial match
+    diagnosis_type = django_filters.CharFilter(field_name="diagnosis_type__name", lookup_expr="iexact")
+    class Meta:
+        model = SampleTestReport
+        fields = ['bill_number', 'diagnosis_name', 'diagnosis_type']

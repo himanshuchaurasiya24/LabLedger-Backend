@@ -6,11 +6,12 @@ router.register(r'bill', BillViewset, basename='bill')
 router.register(r'patient-report', PatientReportViewset, basename='patient-report')
 router.register(r'doctor', DoctorViewSet, basename='doctor')
 router.register(r'diagnosis-type', DiagnosisTypeViewSet, basename='diagnosis-type')
+router.register(r'sample-test-report', SampleTestReportViewSet, basename='sample-test-report')
 
 urlpatterns = [
     path('bills/', include(router.urls)),
     path('patient-reports/', include(router.urls)),
     path('doctors/', include(router.urls)),
     path('diagnosis-types/', include(router.urls)),
-
+    path('sample-test-reports/', include(router.urls)),
 ]
