@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from rest_framework import viewsets, permissions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from authentication.models import StaffAccount
@@ -52,3 +53,7 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
             return Response({"message": "Password updated successfully"}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+def health_check(request):
+    return JsonResponse({'status': 'running', }, status=200)
