@@ -11,11 +11,12 @@ from rest_framework_simplejwt.views import (
 from django.conf import settings
 from django.conf.urls.static import static
 
-from authentication.views import health_check
+from authentication.views import TokenVerifyAPIView, health_check
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', health_check),
+    path('verify-auth/', TokenVerifyAPIView.as_view(), name='token_verify'),  # Custom token verification endpoint
     path('auth/', include('authentication.urls')),  # Include authentication URLs
     path('center-details/', include('center_detail.urls')),  # Include center_detail URLs
     path('diagnosis/', include('diagnosis.urls')),  # Include diagnosis URLs

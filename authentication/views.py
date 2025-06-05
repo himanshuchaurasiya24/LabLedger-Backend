@@ -1,11 +1,13 @@
 from django.http import JsonResponse
 from rest_framework import viewsets, permissions
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from authentication.models import StaffAccount
 from authentication.serializers import StaffAccountSerializer,PasswordResetSerializer
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
 from diagnosis.views import CenterDetailFilterMixin
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -57,3 +59,8 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
 def health_check(request):
     return JsonResponse({'status': 'running', }, status=200)
+class TokenVerifyAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"detail": "Token is valid", "user": str(request.user)}, status=status.HTTP_200_OK)
