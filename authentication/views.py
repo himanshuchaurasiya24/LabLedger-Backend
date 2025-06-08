@@ -65,3 +65,18 @@ from .serializers import CustomTokenObtainPairSerializer
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class ValidateTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "success": True,
+            "is_admin": user.is_admin , # ✅ custom field
+            "username":user.username,
+            "first_name":user.first_name,
+            "id":user.id,
+        })
+

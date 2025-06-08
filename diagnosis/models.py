@@ -46,6 +46,7 @@ CATEGORY_CHOICES = [
     ('Pathology', 'Pathology'),
     ('ECG', 'ECG'),
     ('Ultrasound', 'Ultrasound'),
+    ('Franchise Lab', 'Franchise Lab'),
 ]
 
 class Doctor(models.Model):
