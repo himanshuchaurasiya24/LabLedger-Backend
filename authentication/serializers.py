@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from authentication.models import StaffAccount
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 
@@ -47,3 +48,8 @@ class PasswordResetSerializer(serializers.Serializer):
         instance.set_password(validated_data['password'])
         instance.save()
         return instance
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        data['is_admin'] = self.user.is_admin  # or use is_superuser depending on your definition
+        return data

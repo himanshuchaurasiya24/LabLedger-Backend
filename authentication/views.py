@@ -59,8 +59,9 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
 def health_check(request):
     return JsonResponse({'status': 'running', }, status=200)
-class TokenVerifyAPIView(APIView):
-    permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        return Response({"detail": "Token is valid", "user": str(request.user)}, status=status.HTTP_200_OK)
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
