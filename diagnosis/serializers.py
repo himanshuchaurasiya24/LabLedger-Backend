@@ -3,6 +3,8 @@ from center_detail.serializers import *
 from .models import *
 from rest_framework import serializers
 from .models import *
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -77,7 +79,7 @@ class BillSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
         user_center = user.center_detail
-
+        attrs['center_detail'] = user_center 
         diagnosis_type = attrs.get('diagnosis_type')
         if diagnosis_type and diagnosis_type.center_detail != user_center:
             raise serializers.ValidationError({
@@ -89,6 +91,12 @@ class BillSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'referred_by_doctor': 'Doctor must belong to your center.'
             })
+
+        instance = Bill(**attrs)
+        try:
+            instance.full_clean()
+        except DjangoValidationError as e:
+            raise DRFValidationError(e.message_dict)
 
         return attrs
 class MinimalBillSerializer(serializers.ModelSerializer):

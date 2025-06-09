@@ -107,6 +107,7 @@ class Bill(models.Model):
     referred_by_doctor = models.ForeignKey(
         Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name="referred_patients_by_doctor"
     )
+    franchise_name = models.CharField(max_length=30, blank=True, null=True)
     date_of_bill = models.DateTimeField(default=timezone.now)
     bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15, default='Fully Paid')
     total_amount = models.IntegerField(editable=False)  # set from diagnosis_type.price, no manual input
@@ -127,6 +128,8 @@ class Bill(models.Model):
             raise ValidationError("Diagnosis type must be selected.")
         
         else:
+            if diagnosis_type.category == "Franchise Lab" and not self.franchise_name:
+                raise ValidationError("Please enter Franchise Lab name.")
             if bill_status not in dict(BILL_STATUS_CHOICES):
                 raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")
             if bill_status == 'Fully Paid' and total != paid+center_disc + doctor_disc:
