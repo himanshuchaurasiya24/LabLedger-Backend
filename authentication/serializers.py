@@ -52,4 +52,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         data['is_admin'] = self.user.is_admin  # or use is_superuser depending on your definition
+        data['username']= self.user.username
+        data['first_name']= self.user.first_name
+        data['last_name']= self.user.last_name
+        data['id']= self.user.id
         return data
