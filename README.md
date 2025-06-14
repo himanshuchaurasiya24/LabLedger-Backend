@@ -34,7 +34,7 @@ git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
 cd LabLedger-Backend
 python -m venv env
 env\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirement.txt
 python manage.py migrate
 python manage.py runserver
 
