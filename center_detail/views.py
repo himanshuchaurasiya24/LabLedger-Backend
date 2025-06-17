@@ -25,3 +25,10 @@ class CenterDetailsViewset(viewsets.ModelViewSet):
         if self.action == 'create':  # Restrict user creation to admins only
             return [IsAdminUser()]
         return super().get_permissions()
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal

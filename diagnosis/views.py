@@ -38,7 +38,13 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
 
-
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal
     def perform_update(self, serializer):
         user = self.request.user
         if not user.center_detail:
@@ -58,7 +64,13 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
-
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -82,7 +94,13 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(test_done_by=user, center_detail=user.center_detail)
-
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -103,7 +121,13 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
-
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -124,7 +148,13 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
-
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])  # List-wrapped
+        return Response(serializer.data)  # Normal
 
     def perform_update(self, serializer):
         user = self.request.user
