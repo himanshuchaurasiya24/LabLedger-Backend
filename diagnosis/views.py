@@ -4,7 +4,7 @@ from rest_framework.filters import SearchFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import *
 from .serializers import *
-import django_filters
+from rest_framework.response import Response
 from .filters import *
 
 class CenterDetailFilterMixin:
@@ -44,7 +44,7 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         
         if request.query_params.get("list_format") == "true":
             return Response([serializer.data])  # List-wrapped
-        return Response(serializer.data)  # Normal
+        return Response(serializer.data)
     def perform_update(self, serializer):
         user = self.request.user
         if not user.center_detail:
