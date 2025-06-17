@@ -53,6 +53,7 @@ class Doctor(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail")
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
+    hospital_name = models.CharField(max_length=30, blank=False, null = False)
     address = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=15, unique=True, validators=[RegexValidator()])
     ultrasound_percentage = models.PositiveIntegerField(default=50,
