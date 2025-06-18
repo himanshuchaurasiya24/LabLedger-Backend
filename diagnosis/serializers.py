@@ -15,8 +15,8 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
         model = Doctor
         fields= ['id','first_name', 'last_name', 'address']
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
-    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
-    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+    # center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
+    # center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = DiagnosisType
         fields ='__all__'
@@ -32,8 +32,10 @@ class DiagnosisTypeSerializer(serializers.ModelSerializer):
 
 
 class DoctorSerializer(serializers.ModelSerializer):
-    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
-    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+    # changed this due to uploading error in doctor
+    # center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
+    # center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+    # center_detail= CenterDetailSerializer(read_only = True)
     class Meta:
         model = Doctor
         fields = "__all__"

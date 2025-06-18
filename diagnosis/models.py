@@ -48,14 +48,18 @@ CATEGORY_CHOICES = [
     ('Ultrasound', 'Ultrasound'),
     ('Franchise Lab', 'Franchise Lab'),
 ]
-
+phone_regex = RegexValidator(
+    regex=r'^\+?[0-9]{1,15}$',
+    message='Invalid phone number. Please enter a valid phone number.'
+)
 class Doctor(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail")
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     hospital_name = models.CharField(max_length=30, blank=False, null = False)
     address = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=15, unique=True, validators=[RegexValidator()])
+    phone_number = models.CharField(max_length=15,unique = True, validators=[phone_regex]
+)
     ultrasound_percentage = models.PositiveIntegerField(default=50,
        validators=[
            validate_incentive_percentage
