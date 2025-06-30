@@ -1,9 +1,8 @@
-from django.shortcuts import render
 from rest_framework import viewsets,permissions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.filters import SearchFilter
 from django_filters.rest_framework import DjangoFilterBackend
-
+from rest_framework.response import Response
 from center_detail.filters import CenterDetailFilter
 from .models import CenterDetail
 from .serializers import CenterDetailSerializer

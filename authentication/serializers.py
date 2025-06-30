@@ -56,4 +56,5 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['first_name']= self.user.first_name
         data['last_name']= self.user.last_name
         data['id']= self.user.id
+        data['center_detail']= CenterDetailSerializer(self.user.center_detail).data
         return data

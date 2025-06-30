@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from center_detail.serializers import CenterDetailSerializer
 from diagnosis.views import CenterDetailFilterMixin
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -79,6 +80,8 @@ class ValidateTokenView(APIView):
 
     def get(self, request):
         user = request.user
+        center = getattr(user, 'center_detail', None)
+        center_data = CenterDetailSerializer(center).data if center else None
         return Response({
             "success": True,
             "is_admin": user.is_admin , # ✅ custom field
@@ -86,5 +89,6 @@ class ValidateTokenView(APIView):
             "first_name":user.first_name,
             "last_name":user.last_name,
             "id":user.id,
+            "center_detail":center_data
         })
 
