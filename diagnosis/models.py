@@ -164,7 +164,6 @@ class Bill(models.Model):
 
         # Calculate incentive
         total = int(self.total_amount or 0)
-        print(f"price: {self.diagnosis_type.price}")
         paid = int(self.paid_amount or 0)
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
@@ -172,17 +171,18 @@ class Bill(models.Model):
         if self.referred_by_doctor and self.diagnosis_type:
             doctor = self.referred_by_doctor
             category = self.diagnosis_type.category.lower()
-
             category_percentage_map = {
                 'ultrasound': doctor.ultrasound_percentage,
                 'pathology': doctor.pathology_percentage,
                 'ecg': doctor.ecg_percentage,
                 'xray': doctor.xray_percentage,
-                'franchise_lab': doctor.franchise_lab_percentage,
+                'franchise lab': doctor.franchise_lab_percentage,
+            
             }
 
             percent = category_percentage_map.get(category, 0)
             full_incentive = (total * percent) // 100
+
 
             if total == paid or (doctor_disc == 0 and center_disc > 0):
                 doctor_incentive = full_incentive

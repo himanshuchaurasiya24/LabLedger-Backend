@@ -71,7 +71,7 @@ class BillSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = (
             'bill_number',
-            'date_of_test',
+            # 'date_of_test',
             'test_done_by',
             'center_detail',
             'incentive_amount',

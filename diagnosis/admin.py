@@ -9,7 +9,7 @@ class DoctorAdmin(admin.ModelAdmin):
 
 class BillAdmin(admin.ModelAdmin):
     ordering = ['bill_number']
-    list_display = ('bill_number', 'date_of_test','patient_name', 'total_amount', 'incentive_amount', 'test_done_by', 'center_detail')
+    list_display = ('bill_number', 'total_amount', 'incentive_amount', "referred_by_doctor", 'date_of_test','patient_name','test_done_by', 'center_detail')
     readonly_fields = ('bill_number', 'total_amount', 'incentive_amount')
 # *******************DON'NT REMOVE THIS CODE 
 # *******************IT IS USED FOR EDITIING 
