@@ -141,7 +141,7 @@ class Bill(models.Model):
                 raise ValidationError({
                     'paid_amount': f"Total amount ({total}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
                 })
-            if bill_status == 'Partially Paid' and total >= paid + center_disc + doctor_disc:
+            if bill_status == 'Partially Paid' and total <= paid + center_disc + doctor_disc:
                 raise ValidationError({
                     'paid_amount': f"Total amount ({total}) must not be greater than or equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a partially paid bill."
                 })
