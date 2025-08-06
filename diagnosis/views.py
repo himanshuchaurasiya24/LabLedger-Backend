@@ -6,6 +6,8 @@ from .models import *
 from .serializers import *
 from rest_framework.response import Response
 from .filters import *
+from rest_framework.decorators import action
+
 
 class CenterDetailFilterMixin:
     def get_queryset(self):
@@ -89,6 +91,10 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
     search_fields = ['bill_number', 'patient_name']
+    @action(detail=False, methods=['get'], url_path='franchise-names')
+    def franchise_names(self, request):
+        franchises = Bill.objects.exclude(franchise_name__isnull=True).exclude(franchise_name__exact='').values_list('franchise_name', flat=True).distinct()
+        return Response(franchises)
     def perform_create(self, serializer):
         user = self.request.user
         if not user.center_detail:
