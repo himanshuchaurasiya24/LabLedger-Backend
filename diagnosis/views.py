@@ -82,6 +82,36 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
 
 
+class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    serializer_class = FranchiseNameSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['franchise_name', 'address', 'phone_number']
+
+    def get_queryset(self):
+        user_center = self.request.user.center_detail
+        return FranchiseName.objects.filter(center_detail=user_center)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.center_detail:
+            raise ValidationError("User does not have an associated center.")
+        serializer.save(center_detail=user.center_detail)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.center_detail != request.user.center_detail:
+            return Response({'detail': 'You do not have permission to access this franchise.'}, status=403)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if instance.center_detail != self.request.user.center_detail:
+            raise ValidationError("You cannot update franchise from another center.")
+        serializer.save()
+
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()

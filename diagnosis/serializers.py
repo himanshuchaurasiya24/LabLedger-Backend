@@ -15,8 +15,6 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
         model = Doctor
         fields= ['id','first_name', 'last_name', 'address']
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
-    # center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
-    # center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
     class Meta:
         model = DiagnosisType
         fields ='__all__'
@@ -32,10 +30,6 @@ class DiagnosisTypeSerializer(serializers.ModelSerializer):
 
 
 class DoctorSerializer(serializers.ModelSerializer):
-    # changed this due to uploading error in doctor
-    # center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
-    # center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
-    # center_detail= CenterDetailSerializer(read_only = True)
     class Meta:
         model = Doctor
         fields = "__all__"
@@ -51,9 +45,25 @@ class DoctorSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class FranchiseNameSerializer(serializers.ModelSerializer):
+    center_detail = MinimalCenterDetailSerializer(read_only=True)
+
+    class Meta:
+        model = FranchiseName
+        fields = '__all__'
+        read_only_fields = ('center_detail',)
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        user_center = user.center_detail
+        attrs['center_detail'] = user_center
+
+        # Prevent duplicate franchise name within same center
+        if FranchiseName.objects.filter(franchise_name=attrs['franchise_name'], center_detail=user_center).exists():
+            raise serializers.ValidationError({'franchise_name': 'This franchise name already exists in your center.'})
+        return attrs
 
 class BillSerializer(serializers.ModelSerializer):
-    # INPUT fields (writeable)
     diagnosis_type = serializers.PrimaryKeyRelatedField(queryset=DiagnosisType.objects.all(), write_only=True)
     referred_by_doctor = serializers.PrimaryKeyRelatedField(
         queryset=Doctor.objects.all(), write_only=True, required=False, allow_null=True
@@ -71,7 +81,6 @@ class BillSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = (
             'bill_number',
-            # 'date_of_test',
             'test_done_by',
             'center_detail',
             'incentive_amount',
