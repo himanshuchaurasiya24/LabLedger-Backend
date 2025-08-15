@@ -16,6 +16,11 @@ class StaffAccountSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'center_detail'):
+            center_detail = request.user.center_detail
+        else:
+            center_detail = None
         user = StaffAccount.objects.create(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -25,7 +30,8 @@ class StaffAccountSerializer(serializers.ModelSerializer):
             address=validated_data['address'],
             is_admin=validated_data.get('is_admin', False),
             is_staff=validated_data.get('is_admin', False),
-            is_superuser=validated_data.get('is_admin', False)
+            is_superuser=validated_data.get('is_admin', False),
+            center_detail=center_detail
         )
         user.set_password(validated_data['password'])
         user.save()
