@@ -60,6 +60,7 @@ class Doctor(models.Model):
     address = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=15,unique = True, validators=[phone_regex]
 )
+    email = models.EmailField(blank=True, null= True, max_length=30)
     ultrasound_percentage = models.PositiveIntegerField(default=50,
        validators=[
            validate_incentive_percentage

@@ -13,7 +13,7 @@ class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
 class MinimalDoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
-        fields= ['id','first_name', 'last_name', 'address']
+        fields= ['id','first_name', 'last_name', 'address', 'email']
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiagnosisType
