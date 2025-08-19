@@ -17,8 +17,11 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiagnosisType
-        fields ='__all__'
+        fields = '__all__'
+        read_only_fields = ['center_detail']  # ✅ center_detail auto-filled
+
     def validate(self, attrs):
+        # only check if center_detail is already present (like during update from admin)
         user_center = self.context['request'].user.center_detail
 
         if attrs.get('center_detail') and attrs['center_detail'] != user_center:
@@ -27,6 +30,7 @@ class DiagnosisTypeSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
 
 
 class DoctorSerializer(serializers.ModelSerializer):
