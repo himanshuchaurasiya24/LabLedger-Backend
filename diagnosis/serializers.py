@@ -33,7 +33,7 @@ class DoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = "__all__"
-        read_only_fields = ['id']
+        read_only_fields = ['id','center_detail']
     def validate(self, attrs):
         user_center = self.context['request'].user.center_detail
 
