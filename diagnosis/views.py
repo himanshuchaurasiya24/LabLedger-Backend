@@ -108,9 +108,11 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        if instance.center_detail != self.request.user.center_detail:
+        user = self.request.user  # <-- define user here
+        if instance.center_detail != user.center_detail:
             raise ValidationError("You cannot update franchise from another center.")
-        serializer.save()
+        serializer.save(center_detail=user.center_detail)
+
 
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
