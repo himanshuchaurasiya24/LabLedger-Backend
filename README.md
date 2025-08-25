@@ -1,5 +1,6 @@
 # 🧪 Diagnostic Center Report & Incentive Software (Windows)
-
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![Django](https://img.shields.io/badge/Django-092E20?logo=django&logoColor=white)
 A modern desktop application for Windows, built with **Flutter** and **Django REST Framework**, designed to streamline diagnostic report generation and manage staff incentives efficiently.
 
 ---
@@ -37,4 +38,5 @@ env\Scripts\activate
 pip install -r requirement.txt
 python manage.py migrate
 python manage.py runserver
+
 
