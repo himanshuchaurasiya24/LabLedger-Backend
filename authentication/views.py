@@ -9,10 +9,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from center_detail.serializers import CenterDetailSerializer
-from diagnosis.views import CenterDetailFilterMixin
-class IsAdminUser(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.is_admin
+from diagnosis.views import CenterDetailFilterMixin, IsAdminUser
+# class IsAdminUser(permissions.BasePermission):
+#     def has_permission(self, request, view):
+#         return request.user.is_authenticated and request.user.is_admin
 
 class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = StaffAccount.objects.all()

@@ -26,14 +26,48 @@ class IsAdminUser(permissions.BasePermission):
         return request.user.is_authenticated and request.user.is_admin
 
 
+# class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+#     queryset= Doctor.objects.all()
+#     serializer_class = DoctorSerializer
+#     authentication_classes= [JWTAuthentication ]
+#     permission_classes = [IsAdminUser,permissions.IsAuthenticated]
+#     filter_backends = [DjangoFilterBackend, SearchFilter]
+#     filterset_class = DoctorFilter
+#     search_fields = ['first_name', 'last_name', 'phone_number']
+#     def perform_create(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(center_detail=user.center_detail)
+
+#     def retrieve(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         serializer = self.get_serializer(instance)
+        
+#         if request.query_params.get("list_format") == "true":
+#             return Response([serializer.data])  # List-wrapped
+#         return Response(serializer.data)
+#     def perform_update(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(center_detail=user.center_detail)
+
 class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset= Doctor.objects.all()
+    queryset = Doctor.objects.all()
     serializer_class = DoctorSerializer
-    authentication_classes= [JWTAuthentication ]
-    permission_classes = [IsAdminUser,permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DoctorFilter
     search_fields = ['first_name', 'last_name', 'phone_number']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+        else:  # list, retrieve
+            permission_classes = [permissions.IsAuthenticated]
+        return [perm() for perm in permission_classes]
+
     def perform_create(self, serializer):
         user = self.request.user
         if not user.center_detail:
@@ -43,33 +77,102 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        
+
         if request.query_params.get("list_format") == "true":
             return Response([serializer.data])  # List-wrapped
         return Response(serializer.data)
+
     def perform_update(self, serializer):
         user = self.request.user
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
 
+# class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+#     queryset = DiagnosisType.objects.all()
+#     serializer_class = DiagnosisTypeSerializer
+#     authentication_classes = [JWTAuthentication]
+#     permission_classes = [IsAdminUser, permissions.IsAuthenticated]
+#     filter_backends = [DjangoFilterBackend, SearchFilter]
+#     filterset_class = DiagnosisTypeFilter
+#     search_fields = ['name', 'description']
+#     def perform_create(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(center_detail=user.center_detail)
+#     def retrieve(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         serializer = self.get_serializer(instance)
+        
+#         if request.query_params.get("list_format") == "true":
+#             return Response([serializer.data])  # List-wrapped
+#         return Response(serializer.data)  # Normal
+
+#     def perform_update(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(center_detail=user.center_detail)
+
+
+
+# class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+#     serializer_class = FranchiseNameSerializer
+#     authentication_classes = [JWTAuthentication]
+#     permission_classes = [IsAdminUser,permissions.IsAuthenticated]
+#     filter_backends = [DjangoFilterBackend, SearchFilter]
+#     search_fields = ['franchise_name', 'address', 'phone_number']
+
+#     def get_queryset(self):
+#         user_center = self.request.user.center_detail
+#         return FranchiseName.objects.filter(center_detail=user_center)
+
+#     def perform_create(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(center_detail=user.center_detail)
+
+#     def retrieve(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         if instance.center_detail != request.user.center_detail:
+#             return Response({'detail': 'You do not have permission to access this franchise.'}, status=403)
+#         serializer = self.get_serializer(instance)
+#         return Response(serializer.data)
+
+#     def perform_update(self, serializer):
+#         instance = self.get_object()
+#         user = self.request.user  # <-- define user here
+#         if instance.center_detail != user.center_detail:
+#             raise ValidationError("You cannot update franchise from another center.")
+#         serializer.save(center_detail=user.center_detail)
+
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
     serializer_class = DiagnosisTypeSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminUser, permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DiagnosisTypeFilter
     search_fields = ['name', 'description']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+        else:  # list, retrieve
+            permission_classes = [permissions.IsAuthenticated]
+        return [perm() for perm in permission_classes]
+
     def perform_create(self, serializer):
         user = self.request.user
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        
+
         if request.query_params.get("list_format") == "true":
             return Response([serializer.data])  # List-wrapped
         return Response(serializer.data)  # Normal
@@ -81,17 +184,22 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         serializer.save(center_detail=user.center_detail)
 
 
-
 class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = FranchiseNameSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['franchise_name', 'address', 'phone_number']
 
     def get_queryset(self):
         user_center = self.request.user.center_detail
         return FranchiseName.objects.filter(center_detail=user_center)
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+        else:  # list, retrieve
+            permission_classes = [permissions.IsAuthenticated]
+        return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -102,13 +210,16 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.center_detail != request.user.center_detail:
-            return Response({'detail': 'You do not have permission to access this franchise.'}, status=403)
+            return Response(
+                {'detail': 'You do not have permission to access this franchise.'},
+                status=403
+            )
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        user = self.request.user  # <-- define user here
+        user = self.request.user
         if instance.center_detail != user.center_detail:
             raise ValidationError("You cannot update franchise from another center.")
         serializer.save(center_detail=user.center_detail)
