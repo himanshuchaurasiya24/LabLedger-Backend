@@ -227,29 +227,36 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Bill.objects.all()
+    queryset = Bill.objects.all()   # ✅ restore base queryset
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
     search_fields = ['bill_number', 'patient_name']
+# ?start_date=2025-08-01&end_date=2025-08-25&referred_by_doctor=5
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.order_by('-id')
+
     @action(detail=False, methods=['get'], url_path='franchise-names')
     def franchise_names(self, request):
         franchises = Bill.objects.exclude(franchise_name__isnull=True).exclude(franchise_name__exact='').values_list('franchise_name', flat=True).distinct()
         return Response(franchises)
+
     def perform_create(self, serializer):
         user = self.request.user
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(test_done_by=user, center_detail=user.center_detail)
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         
         if request.query_params.get("list_format") == "true":
             return Response([serializer.data])  # List-wrapped
-        return Response(serializer.data)  # Normal
+        return Response(serializer.data)
 
     def perform_update(self, serializer):
         user = self.request.user
