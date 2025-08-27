@@ -7,7 +7,10 @@ from .serializers import *
 from rest_framework.response import Response
 from .filters import *
 from rest_framework.decorators import action
-
+from django.db.models import Count
+from rest_framework.views import APIView
+from datetime import date
+from calendar import monthrange
 
 class CenterDetailFilterMixin:
     def get_queryset(self):
@@ -24,34 +27,6 @@ class CenterDetailFilterMixin:
 class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
-
-
-# class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-#     queryset= Doctor.objects.all()
-#     serializer_class = DoctorSerializer
-#     authentication_classes= [JWTAuthentication ]
-#     permission_classes = [IsAdminUser,permissions.IsAuthenticated]
-#     filter_backends = [DjangoFilterBackend, SearchFilter]
-#     filterset_class = DoctorFilter
-#     search_fields = ['first_name', 'last_name', 'phone_number']
-#     def perform_create(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(center_detail=user.center_detail)
-
-#     def retrieve(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         serializer = self.get_serializer(instance)
-        
-#         if request.query_params.get("list_format") == "true":
-#             return Response([serializer.data])  # List-wrapped
-#         return Response(serializer.data)
-#     def perform_update(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(center_detail=user.center_detail)
 
 class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Doctor.objects.all()
@@ -89,66 +64,6 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(center_detail=user.center_detail)
-
-# class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-#     queryset = DiagnosisType.objects.all()
-#     serializer_class = DiagnosisTypeSerializer
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAdminUser, permissions.IsAuthenticated]
-#     filter_backends = [DjangoFilterBackend, SearchFilter]
-#     filterset_class = DiagnosisTypeFilter
-#     search_fields = ['name', 'description']
-#     def perform_create(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(center_detail=user.center_detail)
-#     def retrieve(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         serializer = self.get_serializer(instance)
-        
-#         if request.query_params.get("list_format") == "true":
-#             return Response([serializer.data])  # List-wrapped
-#         return Response(serializer.data)  # Normal
-
-#     def perform_update(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(center_detail=user.center_detail)
-
-
-
-# class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-#     serializer_class = FranchiseNameSerializer
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAdminUser,permissions.IsAuthenticated]
-#     filter_backends = [DjangoFilterBackend, SearchFilter]
-#     search_fields = ['franchise_name', 'address', 'phone_number']
-
-#     def get_queryset(self):
-#         user_center = self.request.user.center_detail
-#         return FranchiseName.objects.filter(center_detail=user_center)
-
-#     def perform_create(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(center_detail=user.center_detail)
-
-#     def retrieve(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         if instance.center_detail != request.user.center_detail:
-#             return Response({'detail': 'You do not have permission to access this franchise.'}, status=403)
-#         serializer = self.get_serializer(instance)
-#         return Response(serializer.data)
-
-#     def perform_update(self, serializer):
-#         instance = self.get_object()
-#         user = self.request.user  # <-- define user here
-#         if instance.center_detail != user.center_detail:
-#             raise ValidationError("You cannot update franchise from another center.")
-#         serializer.save(center_detail=user.center_detail)
 
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
@@ -227,59 +142,127 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if instance.center_detail != user.center_detail:
             raise ValidationError("You cannot update franchise from another center.")
         serializer.save(center_detail=user.center_detail)
+from django.db.models import Count
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from datetime import date
+from calendar import monthrange
+from .models import Bill
+from .filters import BillFilter
 
+class BillStatsView(APIView):
+    """
+    Returns aggregated stats based on `date_of_bill`:
+    - Current month vs previous month
+    - Current year vs previous year
+    - Current quarter vs previous quarter
+    """
 
+    def get_quarter_range(self, year, quarter):
+        """Return first and last date of a given quarter"""
+        if quarter == 1:
+            return date(year, 1, 1), date(year, 3, 31)
+        elif quarter == 2:
+            return date(year, 4, 1), date(year, 6, 30)
+        elif quarter == 3:
+            return date(year, 7, 1), date(year, 9, 30)
+        else:  # quarter 4
+            return date(year, 10, 1), date(year, 12, 31)
 
-# class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-#     queryset = Bill.objects.all()   # ✅ restore base queryset
-#     serializer_class = BillSerializer
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [permissions.IsAuthenticated]
-#     filter_backends = [DjangoFilterBackend, SearchFilter]
-#     filterset_class = BillFilter
-#     # Recommended search fields
-#     search_fields = [
-#         'bill_number',
-#         'patient_name',
-#         'diagnosis_type__name',
-#         'referred_by_doctor__first_name',
-#         'referred_by_doctor__last_name',
-#         'franchise_name',
-#     ]
-#     def list(self, request, *args, **kwargs):
-#         queryset = self.filter_queryset(self.get_queryset())
-#         query = request.query_params.get("search", "")
-#         serializer = self.get_serializer(queryset, many=True, context={"query": query})
-#         return Response(serializer.data)
-# # ?start_date=2025-08-01&end_date=2025-08-25&referred_by_doctor=5
-#     def get_queryset(self):
-#         qs = super().get_queryset()
-#         return qs.order_by('-id')
+    def get(self, request, format=None):
+        today = date.today()
 
-#     @action(detail=False, methods=['get'], url_path='franchise-names')
-#     def franchise_names(self, request):
-#         franchises = Bill.objects.exclude(franchise_name__isnull=True).exclude(franchise_name__exact='').values_list('franchise_name', flat=True).distinct()
-#         return Response(franchises)
+        # Helper: first and last day of a month
+        def month_range(year, month):
+            first_day = date(year, month, 1)
+            last_day = date(year, month, monthrange(year, month)[1])
+            return first_day, last_day
 
-#     def perform_create(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(test_done_by=user, center_detail=user.center_detail)
+        # ---------- Current Month ----------
+        first_day_curr_month, last_day_curr_month = month_range(today.year, today.month)
+        current_month_qs = BillFilter(
+            data={'bill_start_date': first_day_curr_month, 'bill_end_date': last_day_curr_month},
+            queryset=Bill.objects.all()
+        ).qs
 
-#     def retrieve(self, request, *args, **kwargs):
-#         instance = self.get_object()
-#         serializer = self.get_serializer(instance)
-        
-#         if request.query_params.get("list_format") == "true":
-#             return Response([serializer.data])  # List-wrapped
-#         return Response(serializer.data)
+        # ---------- Previous Month ----------
+        if today.month == 1:
+            prev_month = 12
+            prev_month_year = today.year - 1
+        else:
+            prev_month = today.month - 1
+            prev_month_year = today.year
 
-#     def perform_update(self, serializer):
-#         user = self.request.user
-#         if not user.center_detail:
-#             raise ValidationError("User does not have an associated center.")
-#         serializer.save(test_done_by=user, center_detail=user.center_detail)
+        first_day_prev_month, last_day_prev_month = month_range(prev_month_year, prev_month)
+        previous_month_qs = BillFilter(
+            data={'bill_start_date': first_day_prev_month, 'bill_end_date': last_day_prev_month},
+            queryset=Bill.objects.all()
+        ).qs
+
+        # ---------- Current Year ----------
+        first_day_curr_year = date(today.year, 1, 1)
+        last_day_curr_year = date(today.year, 12, 31)
+        current_year_qs = BillFilter(
+            data={'bill_start_date': first_day_curr_year, 'bill_end_date': last_day_curr_year},
+            queryset=Bill.objects.all()
+        ).qs
+
+        # ---------- Previous Year ----------
+        last_year = today.year - 1
+        first_day_prev_year = date(last_year, 1, 1)
+        last_day_prev_year = date(last_year, 12, 31)
+        previous_year_qs = BillFilter(
+            data={'bill_start_date': first_day_prev_year, 'bill_end_date': last_day_prev_year},
+            queryset=Bill.objects.all()
+        ).qs
+
+        # ---------- Current Quarter ----------
+        current_quarter = (today.month - 1) // 3 + 1
+        first_day_curr_quarter, last_day_curr_quarter = self.get_quarter_range(today.year, current_quarter)
+        current_quarter_qs = BillFilter(
+            data={'bill_start_date': first_day_curr_quarter, 'bill_end_date': last_day_curr_quarter},
+            queryset=Bill.objects.all()
+        ).qs
+
+        # ---------- Previous Quarter ----------
+        if current_quarter == 1:
+            prev_quarter = 4
+            prev_quarter_year = today.year - 1
+        else:
+            prev_quarter = current_quarter - 1
+            prev_quarter_year = today.year
+
+        first_day_prev_quarter, last_day_prev_quarter = self.get_quarter_range(prev_quarter_year, prev_quarter)
+        previous_quarter_qs = BillFilter(
+            data={'bill_start_date': first_day_prev_quarter, 'bill_end_date': last_day_prev_quarter},
+            queryset=Bill.objects.all()
+        ).qs
+
+        # ---------- Aggregation ----------
+        # Example inside your aggregate function
+        def aggregate(qs):
+            total_bills = qs.count()
+            diagnosis_counts = (
+                qs.values('diagnosis_type__category')
+                .annotate(count=Count('id'))
+            )
+            counts_dict = {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+            return {
+                "total_bills": total_bills,
+                "diagnosis_counts": counts_dict
+            }
+
+        data = {
+            "current_month": aggregate(current_month_qs),
+            "previous_month": aggregate(previous_month_qs),
+            "current_year": aggregate(current_year_qs),
+            "previous_year": aggregate(previous_year_qs),
+            "current_quarter": aggregate(current_quarter_qs),
+            "previous_quarter": aggregate(previous_quarter_qs),
+        }
+
+        return Response(data)
+
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()

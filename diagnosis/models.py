@@ -42,7 +42,7 @@ BILL_STATUS_CHOICES = [
     ('Unpaid', 'Unpaid'),
 ]
 CATEGORY_CHOICES = [
-    ('X-ray', 'X-ray'),
+    ('X-Ray', 'X-Ray'),
     ('Pathology', 'Pathology'),
     ('ECG', 'ECG'),
     ('Ultrasound', 'Ultrasound'),
