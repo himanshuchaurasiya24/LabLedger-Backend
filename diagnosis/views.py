@@ -60,7 +60,9 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DoctorFilter
     search_fields = ['first_name', 'last_name', 'phone_number']
-
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.order_by('-first_name')
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsAdminUser]
@@ -155,7 +157,9 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DiagnosisTypeFilter
     search_fields = ['name', 'description']
-
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.order_by('-name')
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsAdminUser]
@@ -189,10 +193,10 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['franchise_name', 'address', 'phone_number']
-
+    
     def get_queryset(self):
         user_center = self.request.user.center_detail
-        return FranchiseName.objects.filter(center_detail=user_center)
+        return FranchiseName.objects.filter(center_detail=user_center).order_by('-franchise_name')
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -226,22 +230,120 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
 
 
+# class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
+#     queryset = Bill.objects.all()   # ✅ restore base queryset
+#     serializer_class = BillSerializer
+#     authentication_classes = [JWTAuthentication]
+#     permission_classes = [permissions.IsAuthenticated]
+#     filter_backends = [DjangoFilterBackend, SearchFilter]
+#     filterset_class = BillFilter
+#     # Recommended search fields
+#     search_fields = [
+#         'bill_number',
+#         'patient_name',
+#         'diagnosis_type__name',
+#         'referred_by_doctor__first_name',
+#         'referred_by_doctor__last_name',
+#         'franchise_name',
+#     ]
+#     def list(self, request, *args, **kwargs):
+#         queryset = self.filter_queryset(self.get_queryset())
+#         query = request.query_params.get("search", "")
+#         serializer = self.get_serializer(queryset, many=True, context={"query": query})
+#         return Response(serializer.data)
+# # ?start_date=2025-08-01&end_date=2025-08-25&referred_by_doctor=5
+#     def get_queryset(self):
+#         qs = super().get_queryset()
+#         return qs.order_by('-id')
+
+#     @action(detail=False, methods=['get'], url_path='franchise-names')
+#     def franchise_names(self, request):
+#         franchises = Bill.objects.exclude(franchise_name__isnull=True).exclude(franchise_name__exact='').values_list('franchise_name', flat=True).distinct()
+#         return Response(franchises)
+
+#     def perform_create(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(test_done_by=user, center_detail=user.center_detail)
+
+#     def retrieve(self, request, *args, **kwargs):
+#         instance = self.get_object()
+#         serializer = self.get_serializer(instance)
+        
+#         if request.query_params.get("list_format") == "true":
+#             return Response([serializer.data])  # List-wrapped
+#         return Response(serializer.data)
+
+#     def perform_update(self, serializer):
+#         user = self.request.user
+#         if not user.center_detail:
+#             raise ValidationError("User does not have an associated center.")
+#         serializer.save(test_done_by=user, center_detail=user.center_detail)
+
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Bill.objects.all()   # ✅ restore base queryset
+    queryset = Bill.objects.all()
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
-    search_fields = ['bill_number', 'patient_name']
-# ?start_date=2025-08-01&end_date=2025-08-25&referred_by_doctor=5
+
+    # Recommended search fields
+    search_fields = [
+        "bill_number",
+        "patient_name",
+        "diagnosis_type__name",
+        "referred_by_doctor__first_name",
+        "referred_by_doctor__last_name",
+        "franchise_name",
+        "bill_status",
+    ]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        query = request.query_params.get("search", "").strip().lower()
+
+        results = []
+        for bill in queryset:
+            match_reason = []
+
+            if query:
+                if bill.bill_number and query in bill.bill_number.lower():
+                    match_reason.append("Bill Number")
+                if bill.patient_name and query in bill.patient_name.lower():
+                    match_reason.append("Patient Name")
+                if bill.franchise_name and query in bill.franchise_name.lower():
+                    match_reason.append("Franchise")
+                if bill.referred_by_doctor:
+                    if bill.referred_by_doctor.first_name and query in bill.referred_by_doctor.first_name.lower():
+                        match_reason.append("Doctor")
+                    if bill.referred_by_doctor.last_name and query in bill.referred_by_doctor.last_name.lower():
+                        match_reason.append("Doctor")
+                if bill.diagnosis_type and query in bill.diagnosis_type.name.lower():
+                    match_reason.append("Diagnosis Type")
+                if bill.bill_status and query in bill.bill_status.lower():
+                    match_reason.append("Bill Status")
+
+            serializer = self.get_serializer(bill, context={"request": request})
+            bill_data = serializer.data
+            bill_data["match_reason"] = match_reason
+            results.append(bill_data)
+
+        return Response(results)
+
     def get_queryset(self):
         qs = super().get_queryset()
-        return qs.order_by('-id')
+        return qs.order_by("-id")
 
-    @action(detail=False, methods=['get'], url_path='franchise-names')
+    @action(detail=False, methods=["get"], url_path="franchise-names")
     def franchise_names(self, request):
-        franchises = Bill.objects.exclude(franchise_name__isnull=True).exclude(franchise_name__exact='').values_list('franchise_name', flat=True).distinct()
+        franchises = (
+            Bill.objects.exclude(franchise_name__isnull=True)
+            .exclude(franchise_name__exact="")
+            .values_list("franchise_name", flat=True)
+            .distinct()
+        )
         return Response(franchises)
 
     def perform_create(self, serializer):
@@ -252,8 +354,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        
+        serializer = self.get_serializer(instance, context={"request": request})
         if request.query_params.get("list_format") == "true":
             return Response([serializer.data])  # List-wrapped
         return Response(serializer.data)

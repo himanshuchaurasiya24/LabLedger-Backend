@@ -68,43 +68,75 @@ class FranchiseNameSerializer(serializers.ModelSerializer):
         return attrs
 
 class BillSerializer(serializers.ModelSerializer):
-    diagnosis_type = serializers.PrimaryKeyRelatedField(queryset=DiagnosisType.objects.all(), write_only=True)
+    # INPUT fields
+    diagnosis_type = serializers.PrimaryKeyRelatedField(
+        queryset=DiagnosisType.objects.all(),
+        write_only=True
+    )
     referred_by_doctor = serializers.PrimaryKeyRelatedField(
-        queryset=Doctor.objects.all(), write_only=True, required=False, allow_null=True
+        queryset=Doctor.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
     )
 
-    # OUTPUT fields (read-only nested)
-    diagnosis_type_output = MinimalDiagnosisTypeSerializer(source='diagnosis_type', read_only=True)
-    referred_by_doctor_output = MinimalDoctorSerializer(source='referred_by_doctor', read_only=True)
-
+    # OUTPUT nested fields
+    diagnosis_type_output = MinimalDiagnosisTypeSerializer(source="diagnosis_type", read_only=True)
+    referred_by_doctor_output = MinimalDoctorSerializer(source="referred_by_doctor", read_only=True)
     test_done_by = MinimalStaffAccountSerializer(read_only=True)
     center_detail = MinimalCenterDetailSerializer(read_only=True)
 
+    # Extra field for search highlight
+    match_reason = serializers.SerializerMethodField()
+
     class Meta:
         model = Bill
-        fields = '__all__'
+        fields = "__all__"
         read_only_fields = (
-            'bill_number',
-            'test_done_by',
-            'center_detail',
-            'incentive_amount',
-            'total_amount',
+            "bill_number",
+            "test_done_by",
+            "center_detail",
+            "incentive_amount",
+            "total_amount",
         )
 
+    def get_match_reason(self, obj):
+        query = self.context.get("query", "").lower()
+        if not query:
+            return None
+
+        reasons = []
+        if query in str(obj.bill_number).lower():
+            reasons.append("Bill Number")
+        if query in (obj.patient_name or "").lower():
+            reasons.append("Patient Name")
+        if query in getattr(obj.diagnosis_type, "name", "").lower():
+            reasons.append("Diagnosis Type")
+        if query in (getattr(obj.referred_by_doctor, "first_name", "") + " " +
+                     getattr(obj.referred_by_doctor, "last_name", "")).lower():
+            reasons.append("Referred Doctor")
+        if query in (obj.franchise_name or "").lower():
+            reasons.append("Franchise")
+        if query in (obj.bill_status or "").lower():
+            reasons.append("Bill Status")
+
+        return reasons if reasons else None
+
     def validate(self, attrs):
-        user = self.context['request'].user
+        user = self.context["request"].user
         user_center = user.center_detail
-        attrs['center_detail'] = user_center 
-        diagnosis_type = attrs.get('diagnosis_type')
+        attrs["center_detail"] = user_center
+
+        diagnosis_type = attrs.get("diagnosis_type")
         if diagnosis_type and diagnosis_type.center_detail != user_center:
             raise serializers.ValidationError({
-                'diagnosis_type': 'Diagnosis type must belong to your center.'
+                "diagnosis_type": "Diagnosis type must belong to your center."
             })
 
-        referred_by_doctor = attrs.get('referred_by_doctor')
+        referred_by_doctor = attrs.get("referred_by_doctor")
         if referred_by_doctor and referred_by_doctor.center_detail != user_center:
             raise serializers.ValidationError({
-                'referred_by_doctor': 'Doctor must belong to your center.'
+                "referred_by_doctor": "Doctor must belong to your center."
             })
 
         instance = Bill(**attrs)

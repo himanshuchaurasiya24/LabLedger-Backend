@@ -39,20 +39,30 @@ class DiagnosisTypeFilter(django_filters.FilterSet):
 
 # Bill Filter (with your detailed filters)
 class BillFilter(django_filters.FilterSet):
-    bill_number = django_filters.CharFilter(field_name='bill_number', lookup_expr='iexact')  # exact match
-    patient_name = django_filters.CharFilter(field_name='patient_name', lookup_expr='icontains')  # partial, case-insensitive
-    patient_age = django_filters.NumberFilter(field_name='patient_age')  # exact age
-    patient_sex = django_filters.CharFilter(field_name='patient_sex', lookup_expr='iexact')  # exact match
-    diagnosis_type = django_filters.NumberFilter(field_name='diagnosis_type__id')  # by foreign key id
+    bill_number = django_filters.CharFilter(field_name='bill_number', lookup_expr='iexact')
+    patient_name = django_filters.CharFilter(field_name='patient_name', lookup_expr='icontains')
+    patient_age = django_filters.NumberFilter(field_name='patient_age')
+    patient_sex = django_filters.CharFilter(field_name='patient_sex', lookup_expr='iexact')
+    diagnosis_type = django_filters.NumberFilter(field_name='diagnosis_type__id')
     referred_by_doctor = django_filters.NumberFilter(field_name='referred_by_doctor__id')
     test_done_by = django_filters.NumberFilter(field_name='test_done_by__id')
 
-    date_of_test = django_filters.DateFilter(field_name='date_of_test__date', lookup_expr='icontains')  # partial date match
+    # Date of Test
+    date_of_test = django_filters.DateFilter(field_name='date_of_test__date', lookup_expr='exact')
     start_date = django_filters.DateFilter(field_name='date_of_test__date', lookup_expr='gte')
     end_date = django_filters.DateFilter(field_name='date_of_test__date', lookup_expr='lte')
+    test_year = django_filters.NumberFilter(field_name='date_of_test__year', lookup_expr='exact')
+    test_month = django_filters.NumberFilter(field_name='date_of_test__month', lookup_expr='exact')
 
-    date_of_bill = django_filters.DateTimeFilter(field_name='date_of_bill', lookup_expr='exact')
+    # Date of Bill
+    date_of_bill = django_filters.DateFilter(field_name='date_of_bill__date', lookup_expr='exact')
+    bill_start_date = django_filters.DateFilter(field_name='date_of_bill__date', lookup_expr='gte')
+    bill_end_date = django_filters.DateFilter(field_name='date_of_bill__date', lookup_expr='lte')
+    bill_year = django_filters.NumberFilter(field_name='date_of_bill__year', lookup_expr='exact')
+    bill_month = django_filters.NumberFilter(field_name='date_of_bill__month', lookup_expr='exact')
+
     bill_status = django_filters.CharFilter(field_name='bill_status', lookup_expr='iexact')
+    franchise_name = django_filters.CharFilter(field_name='franchise_name', lookup_expr='icontains')
 
     total_amount = django_filters.NumberFilter(field_name='total_amount')
     paid_amount = django_filters.NumberFilter(field_name='paid_amount')
@@ -70,27 +80,14 @@ class BillFilter(django_filters.FilterSet):
     class Meta:
         model = Bill
         fields = [
-            'bill_number',
-            'patient_name',
-            'patient_age',
-            'patient_sex',
-            'diagnosis_type',
-            'referred_by_doctor',
-            'test_done_by',
-            'date_of_test',
-            'date_of_bill',
-            'bill_status',
-            'total_amount',
-            'paid_amount',
-            'disc_by_center',
-            'disc_by_doctor',
-            'incentive_amount',
-            'center_detail',
-            'start_date',
-            'end_date',
-            'last_month',
-            'this_month',
-            'last_7_days',
+            'bill_number', 'patient_name', 'patient_age', 'patient_sex',
+            'diagnosis_type', 'referred_by_doctor', 'test_done_by',
+            'date_of_test', 'start_date', 'end_date', 'test_year', 'test_month',
+            'date_of_bill', 'bill_start_date', 'bill_end_date', 'bill_year', 'bill_month',
+            'bill_status', 'franchise_name',
+            'total_amount', 'paid_amount', 'disc_by_center',
+            'disc_by_doctor', 'incentive_amount', 'center_detail',
+            'last_month', 'this_month', 'last_7_days',
         ]
 
     def filter_last_month(self, queryset, name, value):
