@@ -310,20 +310,20 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
             if query:
                 if bill.bill_number and query in bill.bill_number.lower():
-                    match_reason.append("Bill Number")
+                    match_reason.append("Matching Bill")
                 if bill.patient_name and query in bill.patient_name.lower():
-                    match_reason.append("Patient Name")
+                    match_reason.append("Matching Patient")
                 if bill.franchise_name and query in bill.franchise_name.lower():
-                    match_reason.append("Franchise")
+                    match_reason.append("Matching Franchise")
                 if bill.referred_by_doctor:
                     if bill.referred_by_doctor.first_name and query in bill.referred_by_doctor.first_name.lower():
-                        match_reason.append("Doctor")
+                        match_reason.append("Matching Doctor")
                     if bill.referred_by_doctor.last_name and query in bill.referred_by_doctor.last_name.lower():
-                        match_reason.append("Doctor")
+                        match_reason.append("Matching Doctor")
                 if bill.diagnosis_type and query in bill.diagnosis_type.name.lower():
-                    match_reason.append("Diagnosis Type")
+                    match_reason.append("Matching Diagnosis Type")
                 if bill.bill_status and query in bill.bill_status.lower():
-                    match_reason.append("Bill Status")
+                    match_reason.append("Matching Bill Status")
 
             serializer = self.get_serializer(bill, context={"request": request})
             bill_data = serializer.data
