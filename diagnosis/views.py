@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta
+from django.db.models.functions import Concat
+from django.utils.timezone import now, make_aware
+from django.db.models import Count, Q, Sum, Value
 from rest_framework import viewsets,permissions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.filters import SearchFilter
@@ -142,15 +146,103 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if instance.center_detail != user.center_detail:
             raise ValidationError("You cannot update franchise from another center.")
         serializer.save(center_detail=user.center_detail)
-from django.db.models import Count
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from datetime import date
-from calendar import monthrange
-from .models import Bill
-from .filters import BillFilter
 
-class BillStatsView(APIView):
+class ReferralStatsViewSet(viewsets.ViewSet):
+    """
+    Returns top referrals (referred_by_doctor) with full name,
+    breakdowns (ultrasound, ecg, xray, pathology, franchise_lab),
+    and total incentive amount for this week, month, year, and all time.
+    Can filter by ?referred_by_doctor=<id>
+    """
+
+    def list(self, request):
+        today = now().date()
+
+        # Create timezone-aware datetimes
+        start_of_week = make_aware(datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time()))
+        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()))
+        start_of_year = make_aware(datetime.combine(today.replace(month=1, day=1), datetime.min.time()))
+
+        # Read query param
+        doctor_id = request.query_params.get("referred_by_doctor")
+
+        def get_referral_stats(qs):
+            if doctor_id:
+                qs = qs.filter(referred_by_doctor_id=doctor_id)
+
+            return (
+                qs.annotate(
+                    doctor_full_name=Concat(
+                        "referred_by_doctor__first_name",
+                        Value(" "),
+                        "referred_by_doctor__last_name",
+                    )
+                )
+                .values("referred_by_doctor__id", "doctor_full_name")
+                .annotate(
+                    total=Count("id"),
+                    ultrasound=Count("id", filter=Q(diagnosis_type__category="Ultrasound")),
+                    ecg=Count("id", filter=Q(diagnosis_type__category="ECG")),
+                    xray=Count("id", filter=Q(diagnosis_type__category="X-Ray")),
+                    pathology=Count("id", filter=Q(diagnosis_type__category="Pathology")),
+                    franchise_lab=Count("id", filter=Q(diagnosis_type__category="Franchise Lab")),
+                    incentive_amount=Sum("incentive_amount"),
+                )
+                .order_by("-total")
+            )
+
+        data = {
+            "this_week": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_week))),
+            "this_month": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_month))),
+            "this_year": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_year))),
+            "all_time": list(get_referral_stats(Bill.objects.all())),
+        }
+
+        return Response(data)
+from django.db.models.functions import TruncDate
+class BillChartStatsViewSet(viewsets.ViewSet):
+    """
+    Returns chart data of bills grouped by date_of_bill
+    with total count and category breakdowns
+    for this week, this month, this year, and all time.
+    """
+
+    def list(self, request):
+        today = now().date()
+
+        # Create timezone-aware datetimes (fix: include time arg!)
+        start_of_week = make_aware(datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time()))
+        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()))
+        start_of_year = make_aware(datetime.combine(today.replace(month=1, day=1), datetime.min.time()))
+        # Read query param
+        doctor_id = request.query_params.get("referred_by_doctor")
+        def get_chart_stats(qs):
+            if doctor_id:
+                qs = qs.filter(referred_by_doctor_id=doctor_id)
+            return (
+                qs.annotate(day=TruncDate("date_of_bill"))
+                .values("day")
+                .annotate(
+                    total=Count("id"),
+                    ultrasound=Count("id", filter=Q(diagnosis_type__category="Ultrasound")),
+                    ecg=Count("id", filter=Q(diagnosis_type__category="ECG")),
+                    xray=Count("id", filter=Q(diagnosis_type__category="X-Ray")),
+                    pathology=Count("id", filter=Q(diagnosis_type__category="Pathology")),
+                    franchise_lab=Count("id", filter=Q(diagnosis_type__category="Franchise Lab")),
+                )
+                .order_by("day")
+            )
+
+        data = {
+            "this_week": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_week))),
+            "this_month": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_month))),
+            "this_year": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_year))),
+            "all_time": list(get_chart_stats(Bill.objects.all())),
+        }
+
+        return Response(data)
+
+class BillGrowthStatsView(APIView):
     """
     Returns aggregated stats based on `date_of_bill`:
     - Current month vs previous month

@@ -178,7 +178,7 @@ class Bill(models.Model):
                 'ultrasound': doctor.ultrasound_percentage,
                 'pathology': doctor.pathology_percentage,
                 'ecg': doctor.ecg_percentage,
-                'xray': doctor.xray_percentage,
+                'x-ray': doctor.xray_percentage,
                 'franchise lab': doctor.franchise_lab_percentage,
             
             }

@@ -8,6 +8,8 @@ router.register(r'doctor', DoctorViewSet, basename='doctor')
 router.register(r'diagnosis-type', DiagnosisTypeViewSet, basename='diagnosis-type')
 router.register(r'sample-test-report', SampleTestReportViewSet, basename='sample-test-report')
 router.register(r'franchise-name', FranchiseNameViewSet, basename='franchise-name')
+router.register(r'referral-stat', ReferralStatsViewSet, basename='referral-stats')
+router.register(r'bill-chart-stat', BillChartStatsViewSet, basename='bill-chart-stats')
 
 urlpatterns = [
     path('bills/', include(router.urls)),
@@ -15,6 +17,8 @@ urlpatterns = [
     path('doctors/', include(router.urls)),
     path('diagnosis-types/', include(router.urls)),
     path('sample-test-reports/', include(router.urls)),
+    path('referral-stats/', include(router.urls)),
+    path('bill-chart-stats/', include(router.urls)),
     path('franchise-names/', include(router.urls)),
-     path('bills/stats/', BillStatsView.as_view(), name='bill-stats'),
+     path('bills/growth-stats/', BillGrowthStatsView.as_view(), name='bill-growth-stats'),
 ]
