@@ -1,12 +1,7 @@
-# center_detail/permissions.py
 from rest_framework import permissions
 
 class CenterDetailPermission(permissions.BasePermission):
-    """
-    Superuser -> full CRUD
-    Admin (is_admin=True) -> read + update
-    Normal user -> read-only
-    """
+    """Superuser: full CRUD, Admin: read+update, Normal: read-only"""
 
     def has_permission(self, request, view):
         if request.user.is_superuser:
@@ -20,7 +15,7 @@ class CenterDetailPermission(permissions.BasePermission):
 
 
 class SubscriptionSuperUserOnly(permissions.BasePermission):
-    """Only superusers can do anything with Subscription."""
+    """Only superusers can create/update/delete subscriptions."""
 
     def has_permission(self, request, view):
         return request.user.is_superuser

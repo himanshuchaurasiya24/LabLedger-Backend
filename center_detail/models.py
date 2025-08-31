@@ -11,15 +11,15 @@ class CenterDetail(models.Model):
         return self.center_name
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None  # check if this is a new center
+        is_new = self.pk is None
         super().save(*args, **kwargs)
-
-        # If it's a new center, create a FREE subscription by default
         if is_new:
+            # Create default FREE subscription
             Subscription.objects.create(
                 center=self,
                 plan_type="FREE",
-                valid_days=30,
+                purchase_date=date.today(),
+                expiry_date=date.today() + timedelta(days=30),
             )
 
 
@@ -30,26 +30,34 @@ class Subscription(models.Model):
         ("PREMIUM", "Premium"),
     ]
 
-    center = models.ForeignKey("CenterDetail", on_delete=models.CASCADE, related_name="subscriptions")
+    center = models.ForeignKey(
+        CenterDetail,
+        on_delete=models.CASCADE,
+        related_name="subscriptions"
+    )
     plan_type = models.CharField(max_length=20, choices=PLAN_CHOICES)
-    purchase_date = models.DateField(auto_now_add=True)
-    valid_days = models.PositiveIntegerField(default=30)
-    valid_till = models.DateField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
+    purchase_date = models.DateField()
+    expiry_date = models.DateField()
+    is_active = models.BooleanField(default=True)  # ✅ API-controlled
 
     @property
     def days_left(self):
-        if self.valid_till:
-            return (self.valid_till - date.today()).days
-        return None
+        remaining = (self.expiry_date - date.today()).days
+        return max(remaining, 0)
 
     def save(self, *args, **kwargs):
+        # Default dates if not provided
         if not self.purchase_date:
             self.purchase_date = date.today()
+        if not self.expiry_date:
+            if self.plan_type == "PREMIUM":
+                self.expiry_date = self.purchase_date + timedelta(days=365)
+            elif self.plan_type == "FREE":
+                self.expiry_date = self.purchase_date + timedelta(days=30)
+            else:
+                self.expiry_date = self.purchase_date + timedelta(days=30)
 
-        if self.valid_days:
-            self.valid_till = self.purchase_date + timedelta(days=self.valid_days)
-
+        # DO NOT auto-update existing subscription here
         super().save(*args, **kwargs)
 
     def __str__(self):

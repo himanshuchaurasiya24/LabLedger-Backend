@@ -85,15 +85,16 @@ class ValidateTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Return basic user + center detail info (including subscription)."""
         user = request.user
         center = getattr(user, 'center_detail', None)
 
         center_data = None
         if center:
+            # Use the token serializer to get real-time subscription info
             center_data = CenterDetailTokenSerializer(center).data
 
         return Response({
+            "success": True,
             "is_admin": user.is_admin,
             "username": user.username,
             "first_name": user.first_name,

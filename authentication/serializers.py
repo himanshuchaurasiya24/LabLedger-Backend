@@ -69,20 +69,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add center details
         center = getattr(self.user, "center_detail", None)
         if center:
+            # This will dynamically include subscription from OneToOneField
             center_data = CenterDetailTokenSerializer(center).data
-
-            # ✅ Get latest active subscription with days_left
-            subscription = (
-                Subscription.objects.filter(center=center)
-                .order_by("-valid_till")
-                .first()
-            )
-
-            if subscription:
-                center_data["subscription"] = SubscriptionSerializer(subscription).data
-            else:
-                center_data["subscription"] = None
-
             data["center_detail"] = center_data
         else:
             data["center_detail"] = None
