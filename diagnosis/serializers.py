@@ -10,6 +10,11 @@ class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiagnosisType
         fields = ['id', 'name', 'category', 'price']
+class MinimalBillSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = Bill
+        fields = ['id', 'bill_number', 'patient_name', 'patient_age', 'patient_sex']
 class MinimalDoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
@@ -146,11 +151,6 @@ class BillSerializer(serializers.ModelSerializer):
             raise DRFValidationError(e.message_dict)
 
         return attrs
-class MinimalBillSerializer(serializers.ModelSerializer):
-    
-    class Meta:
-        model = Bill
-        fields = ['id', 'bill_number', 'patient_name', 'patient_age', 'patient_sex']
 
 class PatientReportSerializer(serializers.ModelSerializer):
     bill = serializers.PrimaryKeyRelatedField(queryset=Bill.objects.all(), write_only=True)

@@ -6,7 +6,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from rest_framework import serializers
 from authentication.models import StaffAccount
-from center_detail.serializers import CenterDetailSerializer
+from center_detail.models import Subscription
+from center_detail.serializers import CenterDetailSerializer, CenterDetailTokenSerializer, SubscriptionSerializer
 
 class StaffAccountSerializer(serializers.ModelSerializer):
     center_detail = CenterDetailSerializer(read_only = True)
@@ -57,10 +58,33 @@ class PasswordResetSerializer(serializers.Serializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        data['is_admin'] = self.user.is_admin  # or use is_superuser depending on your definition
-        data['username']= self.user.username
-        data['first_name']= self.user.first_name
-        data['last_name']= self.user.last_name
-        data['id']= self.user.id
-        data['center_detail']= CenterDetailSerializer(self.user.center_detail).data
+
+        # Add basic user info
+        data['is_admin'] = self.user.is_admin
+        data['username'] = self.user.username
+        data['first_name'] = self.user.first_name
+        data['last_name'] = self.user.last_name
+        data['id'] = self.user.id
+
+        # Add center details
+        center = getattr(self.user, "center_detail", None)
+        if center:
+            center_data = CenterDetailTokenSerializer(center).data
+
+            # ✅ Get latest active subscription with days_left
+            subscription = (
+                Subscription.objects.filter(center=center)
+                .order_by("-valid_till")
+                .first()
+            )
+
+            if subscription:
+                center_data["subscription"] = SubscriptionSerializer(subscription).data
+            else:
+                center_data["subscription"] = None
+
+            data["center_detail"] = center_data
+        else:
+            data["center_detail"] = None
+
         return data
