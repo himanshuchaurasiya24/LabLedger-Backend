@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from time import localtime
 from django.db.models.functions import Concat
 from django.utils.timezone import now, make_aware
 from django.db.models import Count, Q, Sum, Value
@@ -146,6 +147,7 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if instance.center_detail != user.center_detail:
             raise ValidationError("You cannot update franchise from another center.")
         serializer.save(center_detail=user.center_detail)
+from django.utils.timezone import now, localtime, make_aware, get_default_timezone
 
 class ReferralStatsViewSet(viewsets.ViewSet):
     """
@@ -156,20 +158,42 @@ class ReferralStatsViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        today = now().date()
+        # --- Get current date safely in local timezone ---
+        current_datetime = localtime(now())  # timezone-aware datetime
+        today = current_datetime.date()      # just the date
 
-        # Create timezone-aware datetimes
-        start_of_week = make_aware(datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time()))
-        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()))
-        start_of_year = make_aware(datetime.combine(today.replace(month=1, day=1), datetime.min.time()))
+        # --- Calculate ranges ---
+        # Week: Monday to Sunday
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
 
-        # Read query param
+        # Month: 1st to last day
+        start_of_month = today.replace(day=1)
+        if today.month == 12:
+            end_of_month = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+        else:
+            end_of_month = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+
+        # Year: 1 Jan to 31 Dec
+        start_of_year = today.replace(month=1, day=1)
+        end_of_year = today.replace(month=12, day=31)
+
+        # --- Read query param ---
         doctor_id = request.query_params.get("referred_by_doctor")
 
-        def get_referral_stats(qs):
+        # --- Helper to filter bills in a range ---
+        def bills_in_range(start_date, end_date):
+            tz = get_default_timezone()
+            start_dt = make_aware(datetime.combine(start_date, datetime.min.time()), timezone=tz)
+            end_dt = make_aware(datetime.combine(end_date, datetime.max.time()), timezone=tz)
+
+            qs = Bill.objects.filter(date_of_bill__gte=start_dt, date_of_bill__lte=end_dt)
             if doctor_id:
                 qs = qs.filter(referred_by_doctor_id=doctor_id)
+            return qs
 
+        # --- Helper to annotate stats ---
+        def get_referral_stats(qs):
             return (
                 qs.annotate(
                     doctor_full_name=Concat(
@@ -191,10 +215,11 @@ class ReferralStatsViewSet(viewsets.ViewSet):
                 .order_by("-total")
             )
 
+        # --- Build response ---
         data = {
-            "this_week": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_week))),
-            "this_month": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_month))),
-            "this_year": list(get_referral_stats(Bill.objects.filter(date_of_bill__gte=start_of_year))),
+            "this_week": list(get_referral_stats(bills_in_range(start_of_week, end_of_week))),
+            "this_month": list(get_referral_stats(bills_in_range(start_of_month, end_of_month))),
+            "this_year": list(get_referral_stats(bills_in_range(start_of_year, end_of_year))),
             "all_time": list(get_referral_stats(Bill.objects.all())),
         }
 
@@ -208,17 +233,32 @@ class BillChartStatsViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        today = now().date()
+        tz = get_default_timezone()
+        today = now().astimezone(tz).date()
 
-        # Create timezone-aware datetimes (fix: include time arg!)
-        start_of_week = make_aware(datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time()))
-        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()))
-        start_of_year = make_aware(datetime.combine(today.replace(month=1, day=1), datetime.min.time()))
-        # Read query param
+        # --- Define range start/end datetimes ---
+        start_of_week = make_aware(datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time()), tz)
+        end_of_week = make_aware(datetime.combine(today + timedelta(days=(6 - today.weekday())), datetime.max.time()), tz)
+
+        start_of_month = make_aware(datetime.combine(today.replace(day=1), datetime.min.time()), tz)
+        # last day of month
+        if today.month == 12:
+            end_of_month = make_aware(datetime.combine(today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1), datetime.max.time()), tz)
+        else:
+            end_of_month = make_aware(datetime.combine(today.replace(month=today.month + 1, day=1) - timedelta(days=1), datetime.max.time()), tz)
+
+        start_of_year = make_aware(datetime.combine(today.replace(month=1, day=1), datetime.min.time()), tz)
+        end_of_year = make_aware(datetime.combine(today.replace(month=12, day=31), datetime.max.time()), tz)
+
         doctor_id = request.query_params.get("referred_by_doctor")
+
+        # --- Helper: build chart stats safely ---
         def get_chart_stats(qs):
             if doctor_id:
                 qs = qs.filter(referred_by_doctor_id=doctor_id)
+            if not qs.exists():  # Return empty if no bills
+                return []
+
             return (
                 qs.annotate(day=TruncDate("date_of_bill"))
                 .values("day")
@@ -233,11 +273,17 @@ class BillChartStatsViewSet(viewsets.ViewSet):
                 .order_by("day")
             )
 
+        # --- Build querysets for ranges ---
+        qs_week = Bill.objects.filter(date_of_bill__gte=start_of_week, date_of_bill__lte=end_of_week)
+        qs_month = Bill.objects.filter(date_of_bill__gte=start_of_month, date_of_bill__lte=end_of_month)
+        qs_year = Bill.objects.filter(date_of_bill__gte=start_of_year, date_of_bill__lte=end_of_year)
+        qs_all = Bill.objects.all()
+
         data = {
-            "this_week": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_week))),
-            "this_month": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_month))),
-            "this_year": list(get_chart_stats(Bill.objects.filter(date_of_bill__gte=start_of_year))),
-            "all_time": list(get_chart_stats(Bill.objects.all())),
+            "this_week": list(get_chart_stats(qs_week)),
+            "this_month": list(get_chart_stats(qs_month)),
+            "this_year": list(get_chart_stats(qs_year)),
+            "all_time": list(get_chart_stats(qs_all)),
         }
 
         return Response(data)
