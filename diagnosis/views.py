@@ -288,6 +288,7 @@ class BillChartStatsViewSet(viewsets.ViewSet):
 
         return Response(data)
 
+
 class BillGrowthStatsView(APIView):
     """
     Returns aggregated stats based on `date_of_bill`:
@@ -307,23 +308,43 @@ class BillGrowthStatsView(APIView):
         else:  # quarter 4
             return date(year, 10, 1), date(year, 12, 31)
 
-    def get(self, request, format=None):
-        today = date.today()
+    def get_month_range(self, year, month):
+        """Return first and last day of a month"""
+        first_day = date(year, month, 1)
+        last_day = date(year, month, monthrange(year, month)[1])
+        return first_day, last_day
 
-        # Helper: first and last day of a month
-        def month_range(year, month):
-            first_day = date(year, month, 1)
-            last_day = date(year, month, monthrange(year, month)[1])
-            return first_day, last_day
+    def aggregate(self, qs):
+        """Aggregate total bills and diagnosis counts"""
+        total_bills = qs.count()
+        diagnosis_counts = (
+            qs.values('diagnosis_type__category')
+            .annotate(count=Count('id'))
+        )
+        counts_dict = {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+        return {
+            "total_bills": total_bills,
+            "diagnosis_counts": counts_dict
+        }
 
-        # ---------- Current Month ----------
-        first_day_curr_month, last_day_curr_month = month_range(today.year, today.month)
-        current_month_qs = BillFilter(
-            data={'bill_start_date': first_day_curr_month, 'bill_end_date': last_day_curr_month},
+    def get_filtered_queryset(self, start_date: date, end_date: date):
+        """Return filtered queryset for given date range"""
+        return BillFilter(
+            data={
+                'bill_start_date': start_date.isoformat(),
+                'bill_end_date': end_date.isoformat()
+            },
             queryset=Bill.objects.all()
         ).qs
 
-        # ---------- Previous Month ----------
+    def get(self, request, format=None):
+        today = date.today()
+
+        # Current Month
+        first_curr_month, last_curr_month = self.get_month_range(today.year, today.month)
+        current_month_qs = self.get_filtered_queryset(first_curr_month, last_curr_month)
+
+        # Previous Month
         if today.month == 1:
             prev_month = 12
             prev_month_year = today.year - 1
@@ -331,38 +352,24 @@ class BillGrowthStatsView(APIView):
             prev_month = today.month - 1
             prev_month_year = today.year
 
-        first_day_prev_month, last_day_prev_month = month_range(prev_month_year, prev_month)
-        previous_month_qs = BillFilter(
-            data={'bill_start_date': first_day_prev_month, 'bill_end_date': last_day_prev_month},
-            queryset=Bill.objects.all()
-        ).qs
+        first_prev_month, last_prev_month = self.get_month_range(prev_month_year, prev_month)
+        previous_month_qs = self.get_filtered_queryset(first_prev_month, last_prev_month)
 
-        # ---------- Current Year ----------
-        first_day_curr_year = date(today.year, 1, 1)
-        last_day_curr_year = date(today.year, 12, 31)
-        current_year_qs = BillFilter(
-            data={'bill_start_date': first_day_curr_year, 'bill_end_date': last_day_curr_year},
-            queryset=Bill.objects.all()
-        ).qs
+        # Current Year
+        first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
+        current_year_qs = self.get_filtered_queryset(first_curr_year, last_curr_year)
 
-        # ---------- Previous Year ----------
+        # Previous Year
         last_year = today.year - 1
-        first_day_prev_year = date(last_year, 1, 1)
-        last_day_prev_year = date(last_year, 12, 31)
-        previous_year_qs = BillFilter(
-            data={'bill_start_date': first_day_prev_year, 'bill_end_date': last_day_prev_year},
-            queryset=Bill.objects.all()
-        ).qs
+        first_prev_year, last_prev_year = date(last_year, 1, 1), date(last_year, 12, 31)
+        previous_year_qs = self.get_filtered_queryset(first_prev_year, last_prev_year)
 
-        # ---------- Current Quarter ----------
+        # Current Quarter
         current_quarter = (today.month - 1) // 3 + 1
-        first_day_curr_quarter, last_day_curr_quarter = self.get_quarter_range(today.year, current_quarter)
-        current_quarter_qs = BillFilter(
-            data={'bill_start_date': first_day_curr_quarter, 'bill_end_date': last_day_curr_quarter},
-            queryset=Bill.objects.all()
-        ).qs
+        first_curr_quarter, last_curr_quarter = self.get_quarter_range(today.year, current_quarter)
+        current_quarter_qs = self.get_filtered_queryset(first_curr_quarter, last_curr_quarter)
 
-        # ---------- Previous Quarter ----------
+        # Previous Quarter
         if current_quarter == 1:
             prev_quarter = 4
             prev_quarter_year = today.year - 1
@@ -370,37 +377,20 @@ class BillGrowthStatsView(APIView):
             prev_quarter = current_quarter - 1
             prev_quarter_year = today.year
 
-        first_day_prev_quarter, last_day_prev_quarter = self.get_quarter_range(prev_quarter_year, prev_quarter)
-        previous_quarter_qs = BillFilter(
-            data={'bill_start_date': first_day_prev_quarter, 'bill_end_date': last_day_prev_quarter},
-            queryset=Bill.objects.all()
-        ).qs
+        first_prev_quarter, last_prev_quarter = self.get_quarter_range(prev_quarter_year, prev_quarter)
+        previous_quarter_qs = self.get_filtered_queryset(first_prev_quarter, last_prev_quarter)
 
-        # ---------- Aggregation ----------
-        # Example inside your aggregate function
-        def aggregate(qs):
-            total_bills = qs.count()
-            diagnosis_counts = (
-                qs.values('diagnosis_type__category')
-                .annotate(count=Count('id'))
-            )
-            counts_dict = {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
-            return {
-                "total_bills": total_bills,
-                "diagnosis_counts": counts_dict
-            }
-
+        # Build response
         data = {
-            "current_month": aggregate(current_month_qs),
-            "previous_month": aggregate(previous_month_qs),
-            "current_year": aggregate(current_year_qs),
-            "previous_year": aggregate(previous_year_qs),
-            "current_quarter": aggregate(current_quarter_qs),
-            "previous_quarter": aggregate(previous_quarter_qs),
+            "current_month": self.aggregate(current_month_qs),
+            "previous_month": self.aggregate(previous_month_qs),
+            "current_year": self.aggregate(current_year_qs),
+            "previous_year": self.aggregate(previous_year_qs),
+            "current_quarter": self.aggregate(current_quarter_qs),
+            "previous_quarter": self.aggregate(previous_quarter_qs),
         }
 
         return Response(data)
-
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()
