@@ -148,6 +148,10 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+# The minimum version of the frontend app required to log in.
+# Use Semantic Versioning (MAJOR.MINOR.PATCH)
+# MINIMUM_APP_VERSION = '1.0.0' 
+MINIMUM_APP_VERSION = '1.0.0' 

@@ -16,6 +16,7 @@ from authentication.views import *
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', health_check),
+    path('api/app-info/', AppInfoView.as_view(), name='app-info'),
     path('verify-auth/', ValidateTokenView.as_view(), name='validate-token'),
     path('auth/', include('authentication.urls')),  # Include authentication URLs
     path('center-details/', include('center_detail.urls')),  # Include center_detail URLs

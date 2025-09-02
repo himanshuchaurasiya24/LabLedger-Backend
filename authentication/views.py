@@ -1,3 +1,5 @@
+from django.conf import settings
+from rest_framework.permissions import AllowAny 
 from django.http import JsonResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.permissions import IsAuthenticated
@@ -102,4 +104,15 @@ class ValidateTokenView(APIView):
             "id": user.id,
             "center_detail": center_data,
         })
+class AppInfoView(APIView):
+    permission_classes = [AllowAny]
 
+    def get(self, request, format=None):
+        # Use getattr to safely get the setting.
+        # It will return None if the setting is not found, instead of crashing.
+        min_version = getattr(settings, 'MINIMUM_APP_VERSION', None)
+        
+        data = {
+            "minimum_required_version": min_version,
+        }
+        return Response(data)
