@@ -1,12 +1,12 @@
 from rest_framework import viewsets
 from .models import CenterDetail, Subscription
 from .serializers import CenterDetailListSerializer, CenterDetailSerializer, SubscriptionSerializer
-from .permissions import CenterDetailPermission, SubscriptionSuperUserOnly
-
+from .permissions import CenterDetailPermission, SubscriptionSuperUserOnly, IsSubscriptionActive # Import the permission
 
 class CenterDetailViewSet(viewsets.ModelViewSet):
     queryset = CenterDetail.objects.all()
-    permission_classes = [CenterDetailPermission]
+    # Add the IsSubscriptionActive permission to protect this viewset
+    permission_classes = [CenterDetailPermission, IsSubscriptionActive]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -22,6 +22,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     """
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
+    # DO NOT add IsSubscriptionActive here. The existing permission is correct.
     permission_classes = [SubscriptionSuperUserOnly]
 
     def perform_create(self, serializer):
@@ -30,9 +31,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         existing_sub = Subscription.objects.filter(center=center).first()
         if existing_sub:
             # Update existing subscription instead of creating a new one
-            for attr, value in serializer.validated_data.items():
-                setattr(existing_sub, attr, value)
-            existing_sub.save()
+            serializer.update(existing_sub, serializer.validated_data)
             serializer.instance = existing_sub
         else:
             # Create a new subscription
@@ -41,17 +40,3 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         # Simply save the updated fields
         serializer.save()
-# class SubscriptionViewSet(viewsets.ModelViewSet):
-#     queryset = Subscription.objects.all()
-#     serializer_class = SubscriptionSerializer
-#     permission_classes = [SubscriptionSuperUserOnly]
-
-#     def perform_create(self, serializer):
-#         sub = serializer.save()
-#         # sub.is_active = sub.days_left > 0
-#         sub.save()
-
-#     def perform_update(self, serializer):
-#         sub = serializer.save()
-#         # sub.is_active = sub.days_left > 0
-#         sub.save()
