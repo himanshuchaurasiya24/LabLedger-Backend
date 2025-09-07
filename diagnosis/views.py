@@ -25,6 +25,11 @@ from center_detail.permissions import IsSubscriptionActive
 from .models import *
 from .serializers import *
 from .filters import *
+# --- ADDED: Import your new pagination class ---
+from .pagination import StandardResultsSetPagination 
+from .models import Bill
+from .serializers import BillSerializer
+from .filters import BillFilter
 
 class CenterDetailFilterMixin:
     def get_queryset(self):
@@ -347,82 +352,34 @@ class BillGrowthStatsView(APIView):
         return Response(data)
 
 
-
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    
+    # --- ADDED: This enables fast, scalable pagination ---
+    pagination_class = StandardResultsSetPagination
+
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
     search_fields = [
         "bill_number",
         "patient_name",
         "diagnosis_type__name",
-        "diagnosis_type__category",   # ✅ allow DRF search too
+        "diagnosis_type__category",
         "referred_by_doctor__first_name",
         "referred_by_doctor__last_name",
         "franchise_name",
         "bill_status",
     ]
 
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        query = request.query_params.get("search", "").strip().lower()
-        results = []
-
-        # ✅ Normal list (no search query)
-        if not query:
-            serializer = self.get_serializer(queryset, many=True, context={"request": request})
-            data = serializer.data
-            for bill in data:
-                bill["match_reason"] = []
-            return Response(data)
-
-        # ✅ Search mode: build match_reason
-        for bill in queryset:
-            match_reason = []
-
-            # Bill Number
-            if bill.bill_number and query in bill.bill_number.lower():
-                match_reason.append(f"Bill Numbers With: {query}")
-
-            # Patient Name
-            if bill.patient_name and query in bill.patient_name.lower():
-                match_reason.append(f"Patients With: {query}")
-
-            # Franchise Name
-            if bill.franchise_name and query in bill.franchise_name.lower():
-                match_reason.append(f"Franchises With: {query}")
-
-            # Doctor Name
-            if bill.referred_by_doctor:
-                if query in bill.referred_by_doctor.first_name.lower() or query in bill.referred_by_doctor.last_name.lower():
-                    full_name = f"{bill.referred_by_doctor.first_name} {bill.referred_by_doctor.last_name}"
-                    match_reason.append(f"Doctors With: {query}")
-
-            # Diagnosis Name + Category
-            if bill.diagnosis_type:
-                if query in bill.diagnosis_type.name.lower():
-                    match_reason.append(f"Diagnosis Name With: {query}")
-                if query in bill.diagnosis_type.category.lower():
-                    match_reason.append(f"Diagnosis Type With: {query}")
-
-            # Bill Status
-            if bill.bill_status and query in bill.bill_status.lower():
-                match_reason.append(f"Bill Status With: {query}")
-
-            # If matched anything, add to results
-            if match_reason:
-                serializer = self.get_serializer(bill, context={"request": request})
-                bill_data = serializer.data
-                bill_data["match_reason"] = match_reason
-                results.append(bill_data)
-
-        return Response(results)
+    # --- REMOVED: The entire custom `def list(self, ...)` method is GONE. ---
+    # DRF's default list method will now handle filtering, searching, and pagination.
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Ensure consistent ordering for pagination
         return qs.order_by("-id")
 
     @action(detail=False, methods=["get"], url_path="franchise-names")
@@ -454,6 +411,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if not user.center_detail:
             raise ValidationError("User does not have an associated center.")
         serializer.save(test_done_by=user, center_detail=user.center_detail)
+
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()
     serializer_class = PatientReportSerializer
