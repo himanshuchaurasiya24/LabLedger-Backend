@@ -36,8 +36,12 @@ class DiagnosisTypeFilter(django_filters.FilterSet):
         model = DiagnosisType
         fields = ['name', 'category', 'price', 'center_detail']
 
+import django_filters
+from datetime import timedelta
+from calendar import monthrange
+from django.utils.timezone import now
+from .models import Bill
 
-# Bill Filter (with your detailed filters)
 class BillFilter(django_filters.FilterSet):
     bill_number = django_filters.CharFilter(field_name='bill_number', lookup_expr='iexact')
     patient_name = django_filters.CharFilter(field_name='patient_name', lookup_expr='icontains')
@@ -72,10 +76,13 @@ class BillFilter(django_filters.FilterSet):
 
     center_detail = django_filters.NumberFilter(field_name='center_detail__id')
 
-    # Custom date-based filters
+    # Custom filters
     last_month = django_filters.BooleanFilter(method='filter_last_month')
     this_month = django_filters.BooleanFilter(method='filter_this_month')
     last_7_days = django_filters.BooleanFilter(method='filter_last_7_days')
+
+    # ✅ New custom filter for unpaid + partially paid
+    unpaid_or_partial = django_filters.BooleanFilter(method='filter_unpaid_or_partial')
 
     class Meta:
         model = Bill
@@ -88,6 +95,7 @@ class BillFilter(django_filters.FilterSet):
             'total_amount', 'paid_amount', 'disc_by_center',
             'disc_by_doctor', 'incentive_amount', 'center_detail',
             'last_month', 'this_month', 'last_7_days',
+            'unpaid_or_partial',
         ]
 
     def filter_last_month(self, queryset, name, value):
@@ -112,6 +120,11 @@ class BillFilter(django_filters.FilterSet):
         if value:
             cutoff = now().date() - timedelta(days=7)
             return queryset.filter(date_of_test__date__gte=cutoff)
+        return queryset
+
+    def filter_unpaid_or_partial(self, queryset, name, value):
+        if value:
+            return queryset.filter(bill_status__in=['Unpaid', 'Partially Paid'])
         return queryset
 
 # PatientReport Filter

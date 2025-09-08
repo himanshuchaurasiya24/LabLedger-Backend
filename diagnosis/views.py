@@ -377,10 +377,16 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     # --- REMOVED: The entire custom `def list(self, ...)` method is GONE. ---
     # DRF's default list method will now handle filtering, searching, and pagination.
 
+    # def get_queryset(self):
+    #     qs = super().get_queryset()
+    #     # Ensure consistent ordering for pagination
+    #     return qs.order_by("-id")
     def get_queryset(self):
         qs = super().get_queryset()
-        # Ensure consistent ordering for pagination
-        return qs.order_by("-id")
+        # Sort by newest bills first
+        # We add "-id" as a secondary sort to break any ties 
+        # and ensure consistent, stable pagination.
+        return qs.order_by("-date_of_bill", "-id")
 
     @action(detail=False, methods=["get"], url_path="franchise-names")
     def franchise_names(self, request):
