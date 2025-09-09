@@ -7,9 +7,17 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import CustomTokenObtainPairSerializer
 
 from authentication.models import StaffAccount
-from authentication.serializers import StaffAccountSerializer, PasswordResetSerializer
+# --- UPDATED IMPORTS ---
+# Import the specific serializers we just created
+from authentication.serializers import (
+    StaffAccountSerializer, 
+    AdminPasswordResetSerializer, 
+    UserPasswordChangeSerializer
+)
 from center_detail.serializers import *
 from diagnosis.views import CenterDetailFilterMixin, IsAdminUser
 
@@ -20,6 +28,8 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = StaffAccountSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]  # Default
+
+    # --- (No changes to get_permissions, retrieve, or update) ---
 
     def get_permissions(self):
         """Restrict user creation to admins only"""
@@ -48,41 +58,60 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
             )
         return super().update(request, *args, **kwargs)
 
+    # --- ACTION FULLY REBUILT ---
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
-        """Allow password reset for self or by admin."""
-        user = self.get_object()
+        """
+        Allow password update based on user role.
+        - Admins can reset anyone's password (needs new 'password').
+        - Regular users can update THEIR OWN password (needs 'old_password' and 'new_password').
+        """
+        target_user = self.get_object()
         requesting_user = request.user
+        serializer = None  # Initialize serializer
 
-        if not requesting_user.is_admin and requesting_user != user:
+        if requesting_user.is_admin:
+            # ADMIN FLOW: Admin is resetting this password.
+            # Use the Admin serializer (only needs 'password').
+            serializer = AdminPasswordResetSerializer(data=request.data)
+        
+        elif requesting_user == target_user:
+            # USER SELF-CHANGE FLOW: User is changing their OWN password.
+            # Use the User serializer (needs 'old_password', 'new_password').
+            # We MUST pass context={'request': request} so the serializer can
+            # access request.user to validate the old_password.
+            serializer = UserPasswordChangeSerializer(data=request.data, context={'request': request})
+        
+        else:
+            # FORBIDDEN FLOW: Non-admin trying to change someone else's password.
             return Response(
-                {"error": "You can only reset your own password."},
+                {"error": "You do not have permission to reset this password."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = PasswordResetSerializer(data=request.data)
+        # Now, validate the serializer that was chosen
         if serializer.is_valid():
-            serializer.update(user, serializer.validated_data)
+            # The .update() method (defined in both serializers) handles hashing and saving.
+            serializer.update(target_user, serializer.validated_data)
             return Response({"message": "Password updated successfully"}, status=status.HTTP_200_OK)
 
+        # If serializer.is_valid() returned False:
+        # Return the specific error message(s) (e.g., "Old password incorrect", 
+        # "Password too common", etc.) directly from the serializer.
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ------------------- Health Check -------------------
+# ------------------- Health Check (No Change) -------------------
 def health_check(request):
     return JsonResponse({'status': 'running'}, status=200)
 
 
-# ------------------- Custom JWT Token -------------------
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer
-
+# ------------------- Custom JWT Token (No Change) -------------------
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-# ------------------- Token Validation -------------------
-# authentication.py
+# ------------------- Token Validation (No Change) -------------------
 class ValidateTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -104,12 +133,12 @@ class ValidateTokenView(APIView):
             "id": user.id,
             "center_detail": center_data,
         })
+
+# ------------------- AppInfoView (No Change) -------------------
 class AppInfoView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, format=None):
-        # Use getattr to safely get the setting.
-        # It will return None if the setting is not found, instead of crashing.
         min_version = getattr(settings, 'MINIMUM_APP_VERSION', None)
         
         data = {
