@@ -1,12 +1,6 @@
-from django.contrib.auth.models import AbstractUser
-from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
-from django.contrib.auth.models import BaseUserManager
-
-from django.contrib.auth.models import BaseUserManager
-
-from django.contrib.auth.models import BaseUserManager
+from django.db import models
 
 from center_detail.models import CenterDetail
 
@@ -72,9 +66,6 @@ class StaffAccountManager(BaseUserManager):
         return user
 
 
-
-
-
 class StaffAccount(AbstractUser):
     username = models.CharField(
         max_length=20, 
@@ -94,12 +85,14 @@ class StaffAccount(AbstractUser):
     is_admin = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15, unique=True)
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name='center_detail_staff', blank=True, null=True)
-    objects = StaffAccountManager()
+    
+    # Field to control if the account is locked
+    is_locked = models.BooleanField(
+        default=False,
+        help_text='If true, the user is locked out and cannot log in.'
+    )
 
+    objects = StaffAccountManager()
 
     def __str__(self):
         return self.username
-    
-
-
-    

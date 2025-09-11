@@ -1,51 +1,53 @@
 from datetime import datetime, timedelta, date
 from calendar import monthrange
+
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Concat, TruncDate
 from django.utils.timezone import now, make_aware, get_default_timezone
-from rest_framework import viewsets, permissions
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, permissions
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.exceptions import ValidationError
-from rest_framework.filters import SearchFilter
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from .models import Bill
-from .serializers import BillSerializer
-from .filters import BillFilter
-from center_detail.permissions import IsSubscriptionActive
-from .models import *
-from .serializers import *
-from .filters import *
-# --- ADDED: Import your new pagination class ---
-from .pagination import StandardResultsSetPagination 
-from .models import Bill
-from .serializers import BillSerializer
-from .filters import BillFilter
+
+# Assuming your custom permissions are located in a 'permissions.py' file 
+# within your 'center_detail' app. Adjust the path if necessary.
+from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
+
+from .models import Bill, Doctor, DiagnosisType, FranchiseName, PatientReport, SampleTestReport
+from .serializers import BillSerializer, DoctorSerializer, DiagnosisTypeSerializer, FranchiseNameSerializer, PatientReportSerializer, SampleTestReportSerializer
+from .filters import BillFilter, DoctorFilter, DiagnosisTypeFilter, PatientReportFilter, SampleTestReportFilter
+from .pagination import StandardResultsSetPagination
+
+# --- Mixins and Base Permissions ---
 
 class CenterDetailFilterMixin:
+    """
+    A mixin that filters querysets based on the request.user.center_detail.
+    """
     def get_queryset(self):
         model = self.queryset.model
-        if self.request.user.center_detail is None:
+        user = self.request.user
+        # Ensure user has a center_detail attribute before filtering
+        if not hasattr(user, 'center_detail') or user.center_detail is None:
             return model.objects.none()
-        return model.objects.filter(center_detail=self.request.user.center_detail)
+        return model.objects.filter(center_detail=user.center_detail)
 
     @property
     def request_detail(self):
         return self.request.user.center_detail
-    
 
 class IsAdminUser(permissions.BasePermission):
+    """
+    Custom permission to only allow admin users.
+    """
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
+
+# --- ViewSets ---
 
 class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Doctor.objects.all()
@@ -54,24 +56,25 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DoctorFilter
     search_fields = ['first_name', 'last_name', 'phone_number']
-    
+
     def get_queryset(self):
         qs = super().get_queryset()
         return qs.order_by('-first_name')
-        
+
     def get_permissions(self):
-        # PERMISSION ADDED
+        """
+        Dynamically set permissions based on the action.
+        This method overrides any class-level 'permission_classes' attribute.
+        """
+        # CORRECTED: IsUserNotLocked is now included for all actions.
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive, IsAdminUser]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
         else:  # list, retrieve
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -81,10 +84,7 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
@@ -93,24 +93,24 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DiagnosisTypeFilter
     search_fields = ['name', 'description']
-    
+
     def get_queryset(self):
         qs = super().get_queryset()
         return qs.order_by('-name')
-        
+
     def get_permissions(self):
-        # PERMISSION ADDED
+        """
+        Dynamically set permissions based on the action.
+        """
+        # CORRECTED: IsUserNotLocked is now included for all actions.
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive, IsAdminUser]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
         else:  # list, retrieve
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -120,60 +120,52 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
-
+        serializer.save(center_detail=self.request_detail)
 
 class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = FranchiseNameSerializer
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['franchise_name', 'address', 'phone_number']
-    
+
     def get_queryset(self):
-        user_center = self.request.user.center_detail
-        return FranchiseName.objects.filter(center_detail=user_center).order_by('-franchise_name')
+        return super().get_queryset().order_by('-franchise_name')
 
     def get_permissions(self):
-        # PERMISSION ADDED
+        """
+        Dynamically set permissions based on the action.
+        """
+        # CORRECTED: IsUserNotLocked is now included for all actions.
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive, IsAdminUser]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
         else:  # list, retrieve
-            permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.center_detail != request.user.center_detail:
             return Response(
                 {'detail': 'You do not have permission to access this franchise.'},
-                status=403
+                status=status.HTTP_403_FORBIDDEN
             )
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        user = self.request.user
-        if instance.center_detail != user.center_detail:
+        if instance.center_detail != self.request_detail:
             raise ValidationError("You cannot update franchise from another center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
 class ReferralStatsViewSet(viewsets.ViewSet):
-    # PERMISSION ADDED
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
     def list(self, request):
-        # TIMEZONE CORRECTION
         tz = get_default_timezone()
         today = now().astimezone(tz).date()
 
@@ -227,9 +219,8 @@ class ReferralStatsViewSet(viewsets.ViewSet):
         return Response(data)
 
 class BillChartStatsViewSet(viewsets.ViewSet):
-    # PERMISSION ADDED
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
     def list(self, request):
         tz = get_default_timezone()
@@ -293,9 +284,8 @@ class BillChartStatsViewSet(viewsets.ViewSet):
         return Response(data)
 
 class BillGrowthStatsView(APIView):
-    # PERMISSION ADDED
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
     def get_quarter_range(self, year, quarter):
         if quarter == 1: return date(year, 1, 1), date(year, 3, 31)
@@ -321,7 +311,6 @@ class BillGrowthStatsView(APIView):
         return base_qs.filter(date_of_bill__date__range=(start_date, end_date))
 
     def get(self, request, format=None):
-        # TIMEZONE CORRECTION
         tz = get_default_timezone()
         today = now().astimezone(tz).date()
         base_qs = Bill.objects.filter(center_detail=request.user.center_detail)
@@ -351,16 +340,12 @@ class BillGrowthStatsView(APIView):
         }
         return Response(data)
 
-
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
-    
-    # --- ADDED: This enables fast, scalable pagination ---
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
     pagination_class = StandardResultsSetPagination
-
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
     search_fields = [
@@ -374,18 +359,8 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         "bill_status",
     ]
 
-    # --- REMOVED: The entire custom `def list(self, ...)` method is GONE. ---
-    # DRF's default list method will now handle filtering, searching, and pagination.
-
-    # def get_queryset(self):
-    #     qs = super().get_queryset()
-    #     # Ensure consistent ordering for pagination
-    #     return qs.order_by("-id")
     def get_queryset(self):
         qs = super().get_queryset()
-        # Sort by newest bills first
-        # We add "-id" as a secondary sort to break any ties 
-        # and ensure consistent, stable pagination.
         return qs.order_by("-date_of_bill", "-id")
 
     @action(detail=False, methods=["get"], url_path="franchise-names")
@@ -400,10 +375,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(franchises)
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(test_done_by=user, center_detail=user.center_detail)
+        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -413,26 +385,19 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(test_done_by=user, center_detail=user.center_detail)
+        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()
     serializer_class = PatientReportSerializer
     authentication_classes = [JWTAuthentication]
-    # PERMISSION ADDED
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = PatientReportFilter
     search_fields = ['patient_name', 'report_title']
 
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
         
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -442,26 +407,19 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
 
 class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = SampleTestReport.objects.all()
     serializer_class = SampleTestReportSerializer
     authentication_classes = [JWTAuthentication]
-    # PERMISSION ADDED
-    permission_classes = [permissions.IsAuthenticated, IsSubscriptionActive]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = SampleTestReportFilter
     search_fields = ["diagnosis_type", "diagnosis_name", "center_detail__name"]
     
     def perform_create(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
         
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -471,7 +429,4 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        user = self.request.user
-        if not user.center_detail:
-            raise ValidationError("User does not have an associated center.")
-        serializer.save(center_detail=user.center_detail)
+        serializer.save(center_detail=self.request_detail)
