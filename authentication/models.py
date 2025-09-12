@@ -91,6 +91,8 @@ class StaffAccount(AbstractUser):
         default=False,
         help_text='If true, the user is locked out and cannot log in.'
     )
+    failed_login_attempts = models.IntegerField(default=0)
+    lockout_until = models.DateTimeField(null=True, blank=True)
 
     objects = StaffAccountManager()
 

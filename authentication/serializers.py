@@ -1,22 +1,31 @@
-from rest_framework import serializers
-from rest_framework.exceptions import PermissionDenied
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
-# Import Django's password validator and core exception
+from datetime import timedelta
+from django.utils import timezone
+from django.db.models import Q
+from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from authentication.models import StaffAccount
-from center_detail.models import Subscription
-from center_detail.serializers import CenterDetailSerializer, CenterDetailTokenSerializer, SubscriptionSerializer
+from .models import StaffAccount
+from center_detail.serializers import CenterDetailSerializer, CenterDetailTokenSerializer
 
+# It's best practice to get the user model dynamically
+StaffAccount = get_user_model()
+
+# --- User & Account Serializers ---
 class StaffAccountSerializer(serializers.ModelSerializer):
     center_detail = CenterDetailSerializer(read_only=True)
     password = serializers.CharField(write_only=True, required=False)
     
     class Meta:
         model = StaffAccount
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'is_admin', 'center_detail', 'password', 'is_locked']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 
+            'phone_number', 'address', 'is_admin', 'center_detail', 
+            'password', 'is_locked'
+        ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False}
         }
@@ -53,10 +62,9 @@ class StaffAccountSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": ["This field is required for user creation."]})
             
         request = self.context.get('request')
+        center_detail = None
         if request and hasattr(request.user, 'center_detail'):
             center_detail = request.user.center_detail
-        else:
-            center_detail = None
             
         password = validated_data.pop('password')
         user = StaffAccount.objects.create(
@@ -76,17 +84,28 @@ class StaffAccountSerializer(serializers.ModelSerializer):
         return user
 
     def update(self, instance, validated_data):
+        # Prevent password from being updated via this method
         if 'password' in validated_data:
             validated_data.pop('password')
         
-        # Only allow admins to change the 'is_locked' status.
-        # If a non-admin sends this field, it's silently ignored.
         requesting_user = self.context['request'].user
-        if 'is_locked' in validated_data and not requesting_user.is_admin:
+        
+        # --- AMENDED LOGIC IS HERE ---
+        # An admin can always change the lock status.
+        if 'is_locked' in validated_data and requesting_user.is_admin:
+            # If the admin is specifically UNLOCKING the user (setting to False),
+            # reset the lockout fields for a clean slate.
+            if validated_data['is_locked'] is False:
+                instance.failed_login_attempts = 0
+                instance.lockout_until = None
+        # If a non-admin tries to change the lock status, silently ignore it.
+        elif 'is_locked' in validated_data and not requesting_user.is_admin:
             validated_data.pop('is_locked')
         
+        # Apply all other validated updates
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        
         instance.save()
         return instance
 
@@ -95,13 +114,19 @@ class MinimalStaffAccountSerializer(serializers.ModelSerializer):
         model = StaffAccount
         fields = ['id', 'first_name', 'last_name']
 
+# --- Password Management Serializers ---
+
 class AdminPasswordResetSerializer(serializers.Serializer):
     password = serializers.CharField(
         write_only=True, 
         required=True, 
         style={'input_type': 'password'},
         min_length=1,
-        error_messages={'required': 'Password is required.', 'blank': 'Password cannot be blank.', 'min_length': 'Password must be at least 1 character long.'}
+        error_messages={
+            'required': 'Password is required.', 
+            'blank': 'Password cannot be blank.', 
+            'min_length': 'Password must be at least 1 character long.'
+        }
     )
 
     def validate_password(self, value):
@@ -119,11 +144,17 @@ class AdminPasswordResetSerializer(serializers.Serializer):
 class UserPasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(
         write_only=True, required=True, style={'input_type': 'password'},
-        error_messages={'required': 'Current password is required.', 'blank': 'Current password cannot be blank.'}
+        error_messages={
+            'required': 'Current password is required.', 
+            'blank': 'Current password cannot be blank.'
+        }
     )
     new_password = serializers.CharField(
         write_only=True, required=True, style={'input_type': 'password'},
-        error_messages={'required': 'New password is required.', 'blank': 'New password cannot be blank.'}
+        error_messages={
+            'required': 'New password is required.', 
+            'blank': 'New password cannot be blank.'
+        }
     )
 
     def validate_old_password(self, value):
@@ -141,7 +172,9 @@ class UserPasswordChangeSerializer(serializers.Serializer):
 
     def validate(self, data):
         if data['old_password'] == data['new_password']:
-            raise serializers.ValidationError({"new_password": ["New password must be different from the current password."]})
+            raise serializers.ValidationError({
+                "new_password": ["New password must be different from the current password."]
+            })
         return data
 
     def update(self, instance, validated_data):
@@ -149,15 +182,46 @@ class UserPasswordChangeSerializer(serializers.Serializer):
         instance.save()
         return instance
 
+# --- Token & Authentication Serializer ---
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Custom token serializer with automatic account lockout logic.
+    """
+    MAX_FAILED_ATTEMPTS = 3
+    LOCKOUT_DURATION = timedelta(minutes=15)
+
     def validate(self, attrs):
-        data = super().validate(attrs)
+        username_or_email = attrs.get(self.username_field)
+        
+        user = StaffAccount.objects.filter(
+            Q(username__iexact=username_or_email) | Q(email__iexact=username_or_email)
+        ).first()
 
-        # Raise a PermissionDenied exception (403 Forbidden) if the user is locked.
-        if self.user.is_locked:
-            raise PermissionDenied("User account is locked.")
+        if user and user.is_locked and user.lockout_until and timezone.now() < user.lockout_until:
+            time_left = user.lockout_until - timezone.now()
+            minutes_left = (time_left.seconds + 59) // 60 
+            raise PermissionDenied(f"Account locked. Please try again in {minutes_left} minute(s).")
 
-        # Add custom claims
+        try:
+            data = super().validate(attrs)
+        except AuthenticationFailed:
+            if user:
+                user.failed_login_attempts += 1
+                if user.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
+                    user.is_locked = True
+                    user.lockout_until = timezone.now() + self.LOCKOUT_DURATION
+                    user.save()
+                    raise AuthenticationFailed(f"Your account has been locked for {self.LOCKOUT_DURATION.seconds // 60} minutes due to too many failed login attempts.")
+                user.save()
+            raise AuthenticationFailed("Invalid username or password.")
+        
+        if self.user:
+            self.user.failed_login_attempts = 0
+            self.user.is_locked = False
+            self.user.lockout_until = None
+            self.user.save()
+
         data['is_admin'] = self.user.is_admin
         data['username'] = self.user.username
         data['first_name'] = self.user.first_name
