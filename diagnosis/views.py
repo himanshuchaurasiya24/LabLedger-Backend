@@ -122,20 +122,28 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(center_detail=self.request_detail)
 
+
+
+# In your views.py file
+
 class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    # FIX: You were missing this line. The ViewSet needs a base queryset to work with.
+    queryset = FranchiseName.objects.all()
+
     serializer_class = FranchiseNameSerializer
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['franchise_name', 'address', 'phone_number']
 
     def get_queryset(self):
-        return super().get_queryset().order_by('-franchise_name')
+        # This will now work correctly because super().get_queryset() can access the
+        # queryset defined above.
+        return super().get_queryset().order_by('franchise_name')
 
     def get_permissions(self):
         """
         Dynamically set permissions based on the action.
         """
-        # CORRECTED: IsUserNotLocked is now included for all actions.
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
         else:  # list, retrieve
