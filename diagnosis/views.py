@@ -67,9 +67,9 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         This method overrides any class-level 'permission_classes' attribute.
         """
         # CORRECTED: IsUserNotLocked is now included for all actions.
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in [ 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve
+        else:  # list, retrieve & create
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
@@ -103,9 +103,9 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         Dynamically set permissions based on the action.
         """
         # CORRECTED: IsUserNotLocked is now included for all actions.
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve
+        else:  # list, retrieve & create
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
@@ -144,9 +144,9 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         """
         Dynamically set permissions based on the action.
         """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in [ 'update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve
+        else:  # list, retrieve & create
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
