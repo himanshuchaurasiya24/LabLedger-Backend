@@ -1,3 +1,5 @@
+# authentication/serializers.py
+
 from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Q
@@ -11,8 +13,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import StaffAccount
 from center_detail.serializers import CenterDetailSerializer, CenterDetailTokenSerializer
 
-# It's best practice to get the user model dynamically
 StaffAccount = get_user_model()
+
 
 # --- User & Account Serializers ---
 class StaffAccountSerializer(serializers.ModelSerializer):
@@ -84,38 +86,38 @@ class StaffAccountSerializer(serializers.ModelSerializer):
         return user
 
     def update(self, instance, validated_data):
-        # Prevent password from being updated via this method
         if 'password' in validated_data:
             validated_data.pop('password')
         
         requesting_user = self.context['request'].user
         
-        # --- AMENDED LOGIC IS HERE ---
-        # An admin can always change the lock status.
+        # --- FIX [2]: PREVENT NON-ADMINS FROM CHANGING PRIVILEGES ---
+        # If a non-admin tries to change is_admin status, silently ignore it.
+        if 'is_admin' in validated_data and not requesting_user.is_admin:
+            validated_data.pop('is_admin')
+        
+        # This existing logic for is_locked is correct.
         if 'is_locked' in validated_data and requesting_user.is_admin:
-            # If the admin is specifically UNLOCKING the user (setting to False),
-            # reset the lockout fields for a clean slate.
             if validated_data['is_locked'] is False:
                 instance.failed_login_attempts = 0
                 instance.lockout_until = None
-        # If a non-admin tries to change the lock status, silently ignore it.
         elif 'is_locked' in validated_data and not requesting_user.is_admin:
             validated_data.pop('is_locked')
         
-        # Apply all other validated updates
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
         instance.save()
         return instance
 
+
 class MinimalStaffAccountSerializer(serializers.ModelSerializer):     
     class Meta:
         model = StaffAccount
         fields = ['id', 'first_name', 'last_name']
 
-# --- Password Management Serializers ---
 
+# --- Password Management Serializers ---
 class AdminPasswordResetSerializer(serializers.Serializer):
     password = serializers.CharField(
         write_only=True, 
@@ -140,6 +142,7 @@ class AdminPasswordResetSerializer(serializers.Serializer):
         instance.set_password(validated_data['password'])
         instance.save()
         return instance
+
 
 class UserPasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(
@@ -182,12 +185,9 @@ class UserPasswordChangeSerializer(serializers.Serializer):
         instance.save()
         return instance
 
-# --- Token & Authentication Serializer ---
 
+# --- Token & Authentication Serializer ---
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """
-    Custom token serializer with automatic account lockout logic.
-    """
     MAX_FAILED_ATTEMPTS = 3
     LOCKOUT_DURATION = timedelta(minutes=15)
 
@@ -198,11 +198,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             Q(username__iexact=username_or_email) | Q(email__iexact=username_or_email)
         ).first()
 
-        if user and user.is_locked and user.lockout_until and timezone.now() < user.lockout_until:
-            time_left = user.lockout_until - timezone.now()
-            minutes_left = (time_left.seconds + 59) // 60 
-            raise PermissionDenied(f"Account locked. Please try again in {minutes_left} minute(s).")
+        # --- FIX [1]: PREVENT LOGIN IF ACCOUNT IS LOCKED ---
+        if user and user.is_locked:
+            # Check if it's a temporary lockout that is still active
+            if user.lockout_until and timezone.now() < user.lockout_until:
+                time_left = user.lockout_until - timezone.now()
+                minutes_left = (time_left.seconds + 59) // 60 
+                raise PermissionDenied(f"Account locked due to failed attempts. Please try again in {minutes_left} minute(s).")
+            # Check if it's a manual/permanent lock
+            else:
+                raise PermissionDenied("Your account is locked. Please contact an administrator.")
 
+        # The rest of the validation logic proceeds only if the user is not locked
         try:
             data = super().validate(attrs)
         except AuthenticationFailed:
@@ -216,8 +223,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 user.save()
             raise AuthenticationFailed("Invalid username or password.")
         
+        # This code now correctly runs only for users who were not locked to begin with
         if self.user:
             self.user.failed_login_attempts = 0
+            # We reset lock fields in case a temporary lock had expired
             self.user.is_locked = False
             self.user.lockout_until = None
             self.user.save()

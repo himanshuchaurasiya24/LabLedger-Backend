@@ -139,7 +139,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-        "center_detail.permissions.IsSubscriptionActive"
+        "center_detail.permissions.IsSubscriptionActive",
+        "center_detail.permissions.IsUserNotLocked",
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
