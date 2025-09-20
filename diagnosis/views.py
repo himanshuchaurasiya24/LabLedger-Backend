@@ -291,6 +291,74 @@ class BillChartStatsViewSet(viewsets.ViewSet):
         }
         return Response(data)
 
+class DoctorBillGrowthStatsView(APIView):
+    """
+    Provides bill growth statistics (monthly, quarterly, yearly)
+    including total incentives for a single, specified doctor.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+
+    def get_quarter_range(self, year, quarter):
+        if quarter == 1: return date(year, 1, 1), date(year, 3, 31)
+        elif quarter == 2: return date(year, 4, 1), date(year, 6, 30)
+        elif quarter == 3: return date(year, 7, 1), date(year, 9, 30)
+        else: return date(year, 10, 1), date(year, 12, 31)
+
+    def get_month_range(self, year, month):
+        first_day = date(year, month, 1)
+        _, last_day_num = monthrange(year, month)
+        last_day = date(year, month, last_day_num)
+        return first_day, last_day
+
+    def aggregate(self, qs):
+        """Aggregates total bills and the sum of incentives."""
+        aggregates = qs.aggregate(
+            total_bills=Count('id'),
+            total_incentive=Sum('incentive_amount')
+        )
+        return {
+            "total_bills": aggregates['total_bills'] or 0,
+            # Handle cases where total_incentive might be None (if no bills)
+            "total_incentive": aggregates['total_incentive'] or 0,
+        }
+
+    def get_filtered_queryset(self, start_date, end_date, base_qs):
+        return base_qs.filter(date_of_bill__date__range=(start_date, end_date))
+
+    def get(self, request, doctor_id, format=None):
+        today = now().date()
+
+        # Base queryset is filtered by the doctor_id from the URL
+        base_qs = Bill.objects.filter(
+            center_detail=request.user.center_detail,
+            referred_by_doctor_id=doctor_id
+        )
+
+        # Date Range Calculations
+        first_curr_month, last_curr_month = self.get_month_range(today.year, today.month)
+        prev_month_date = first_curr_month - timedelta(days=1)
+        first_prev_month, last_prev_month = self.get_month_range(prev_month_date.year, prev_month_date.month)
+
+        first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
+        first_prev_year, last_prev_year = date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
+
+        current_quarter = (today.month - 1) // 3 + 1
+        first_curr_quarter, last_curr_quarter = self.get_quarter_range(today.year, current_quarter)
+        prev_quarter_year, prev_quarter = (today.year - 1, 4) if current_quarter == 1 else (today.year, current_quarter - 1)
+        first_prev_quarter, last_prev_quarter = self.get_quarter_range(prev_quarter_year, prev_quarter)
+
+        # Aggregation
+        data = {
+            "current_month": self.aggregate(self.get_filtered_queryset(first_curr_month, last_curr_month, base_qs)),
+            "previous_month": self.aggregate(self.get_filtered_queryset(first_prev_month, last_prev_month, base_qs)),
+            "current_year": self.aggregate(self.get_filtered_queryset(first_curr_year, last_curr_year, base_qs)),
+            "previous_year": self.aggregate(self.get_filtered_queryset(first_prev_year, last_prev_year, base_qs)),
+            "current_quarter": self.aggregate(self.get_filtered_queryset(first_curr_quarter, last_curr_quarter, base_qs)),
+            "previous_quarter": self.aggregate(self.get_filtered_queryset(first_prev_quarter, last_prev_quarter, base_qs)),
+        }
+        return Response(data)
+
 class BillGrowthStatsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
