@@ -115,9 +115,14 @@ class Bill(models.Model):
     diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name="diagnosis_type")
     test_done_by = models.ForeignKey(StaffAccount, on_delete=models.CASCADE, related_name="test_done_by", null=True, blank=True)
     referred_by_doctor = models.ForeignKey(
-        Doctor, on_delete=models.SET_NULL, null=True, blank=True, related_name="referred_patients_by_doctor"
+        Doctor, on_delete=models.CASCADE, null=True, blank=True, related_name="referred_patients_by_doctor"
     )
-    franchise_name = models.CharField(max_length=30, blank=True, null=True)
+    franchise_name = models.ForeignKey(
+        FranchiseName,
+        on_delete=models.CASCADE, # It is nullable, as not all bills are franchise lab bills
+        null=True,
+        blank=True
+    )    
     date_of_bill = models.DateTimeField(default=timezone.now)
     bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15, default='Fully Paid')
     total_amount = models.IntegerField(editable=False)  # set from diagnosis_type.price, no manual input

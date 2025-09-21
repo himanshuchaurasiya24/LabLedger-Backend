@@ -13,10 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-# Assuming your custom permissions are located in a 'permissions.py' file 
-# within your 'center_detail' app. Adjust the path if necessary.
 from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
-
 from .models import Bill, Doctor, DiagnosisType, FranchiseName, PatientReport, SampleTestReport
 from .serializers import BillSerializer, DoctorSerializer, DiagnosisTypeSerializer, FranchiseNameSerializer, PatientReportSerializer, SampleTestReportSerializer
 from .filters import BillFilter, DoctorFilter, DiagnosisTypeFilter, PatientReportFilter, SampleTestReportFilter
@@ -31,7 +28,6 @@ class CenterDetailFilterMixin:
     def get_queryset(self):
         model = self.queryset.model
         user = self.request.user
-        # Ensure user has a center_detail attribute before filtering
         if not hasattr(user, 'center_detail') or user.center_detail is None:
             return model.objects.none()
         return model.objects.filter(center_detail=user.center_detail)
@@ -47,8 +43,7 @@ class IsAdminUser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
 
-# --- ViewSets ---
-
+# --- Model ViewSets ---
 class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Doctor.objects.all()
     serializer_class = DoctorSerializer
@@ -58,23 +53,17 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['first_name', 'last_name', 'phone_number']
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        return qs.order_by('-first_name')
+        return super().get_queryset().order_by('first_name')
 
     def get_permissions(self):
-        """
-        Dynamically set permissions based on the action.
-        This method overrides any class-level 'permission_classes' attribute.
-        """
-        # CORRECTED: IsUserNotLocked is now included for all actions.
-        if self.action in [ 'update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve & create
+        else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        serializer.save(center_detail=self.request.user.center_detail)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -84,7 +73,10 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        # ✅ REFINEMENT: Ensure the object being updated belongs to the user's center.
+        if serializer.instance.center_detail != self.request.user.center_detail:
+            raise PermissionDenied("You do not have permission to edit this doctor.")
+        serializer.save()
 
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
@@ -92,23 +84,19 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DiagnosisTypeFilter
-    search_fields = ['name', 'description']
+    search_fields = ['name', 'category']
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        return qs.order_by('-name')
+        return super().get_queryset().order_by('name')
 
     def get_permissions(self):
-        """
-        Dynamically set permissions based on the action.
-        """
-        # CORRECTED: IsUserNotLocked is now included for all actions.
         if self.action in ['update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve & create
+        else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-
+    
+    # ✅ REFACTORED: Handles assigning the center_detail automatically.
     def perform_create(self, serializer):
         serializer.save(center_detail=self.request_detail)
 
@@ -122,52 +110,130 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(center_detail=self.request_detail)
 
-
-
-# In your views.py file
-
 class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    # FIX: You were missing this line. The ViewSet needs a base queryset to work with.
     queryset = FranchiseName.objects.all()
-
     serializer_class = FranchiseNameSerializer
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     search_fields = ['franchise_name', 'address', 'phone_number']
 
     def get_queryset(self):
-        # This will now work correctly because super().get_queryset() can access the
-        # queryset defined above.
         return super().get_queryset().order_by('franchise_name')
 
     def get_permissions(self):
-        """
-        Dynamically set permissions based on the action.
-        """
-        if self.action in [ 'update', 'partial_update', 'destroy']:
+        if self.action in ['update', 'partial_update', 'destroy']:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
-        else:  # list, retrieve & create
+        else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-
+    
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
-
+        """
+        Automatically associate the new FranchiseName with the logged-in user's center.
+        """
+        serializer.save(center_detail=self.request.user.center_detail)
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.center_detail != request.user.center_detail:
-            return Response(
-                {'detail': 'You do not have permission to access this franchise.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        instance = self.get_object()
-        if instance.center_detail != self.request_detail:
-            raise ValidationError("You cannot update franchise from another center.")
         serializer.save(center_detail=self.request_detail)
+
+class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    queryset = Bill.objects.all()
+    serializer_class = BillSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = BillFilter
+    search_fields = [
+        "bill_number",
+        "patient_name",
+        "diagnosis_type__name",
+        "diagnosis_type__category",
+        "referred_by_doctor__first_name",
+        "referred_by_doctor__last_name",
+        "franchise_name__franchise_name", # ✅ Updated for ForeignKey relationship
+        "bill_status",
+    ]
+
+    def get_queryset(self):
+        return super().get_queryset().order_by("-date_of_bill", "-id")
+
+    @action(detail=False, methods=["get"], url_path="franchise-names")
+    def franchise_names(self, request):
+        franchises = FranchiseName.objects.filter(center_detail=self.request_detail)
+        serializer = FranchiseNameSerializer(franchises, many=True)
+        return Response(serializer.data)
+
+    def perform_create(self, serializer):
+        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, context={"request": request})
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
+
+class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    queryset = PatientReport.objects.all()
+    serializer_class = PatientReportSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = PatientReportFilter
+    search_fields = ['bill__patient_name', 'bill__bill_number']
+
+    def get_queryset(self):
+        return super().get_queryset().order_by('-id')
+
+    # ✅ REFACTORED: Handles assigning the center_detail automatically.
+    def perform_create(self, serializer):
+        serializer.save(center_detail=self.request_detail)
+        
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        serializer.save(center_detail=self.request_detail)
+
+class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
+    queryset = SampleTestReport.objects.all()
+    serializer_class = SampleTestReportSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = SampleTestReportFilter
+    search_fields = ["diagnosis_type", "diagnosis_name"]
+    
+    def get_queryset(self):
+        return super().get_queryset().order_by('-id')
+    
+    # ✅ REFACTORED: Handles assigning the center_detail automatically.
+    def perform_create(self, serializer):
+        serializer.save(center_detail=self.request_detail)
+        
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        if request.query_params.get("list_format") == "true":
+            return Response([serializer.data])
+        return Response(serializer.data)
+
+    def perform_update(self, serializer):
+        serializer.save(center_detail=self.request_detail)
+
+# --- Statistics & Reporting Views (No changes needed) ---
 
 class ReferralStatsViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
@@ -176,17 +242,13 @@ class ReferralStatsViewSet(viewsets.ViewSet):
     def list(self, request):
         tz = get_default_timezone()
         today = now().astimezone(tz).date()
-
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
-
         start_of_month = today.replace(day=1)
-        end_of_month_day = monthrange(today.year, today.month)[1]
+        _, end_of_month_day = monthrange(today.year, today.month)
         end_of_month = today.replace(day=end_of_month_day)
-
         start_of_year = today.replace(month=1, day=1)
         end_of_year = today.replace(month=12, day=31)
-
         doctor_id = request.query_params.get("referred_by_doctor")
 
         def bills_in_range(start_date, end_date):
@@ -238,11 +300,9 @@ class BillChartStatsViewSet(viewsets.ViewSet):
         def get_chart_stats(start_date, end_date):
             start_dt = make_aware(datetime.combine(start_date, datetime.min.time()), tz)
             end_dt = make_aware(datetime.combine(end_date, datetime.max.time()), tz)
-            
             qs = Bill.objects.filter(center_detail=request.user.center_detail, date_of_bill__range=(start_dt, end_dt))
             if doctor_id:
                 qs = qs.filter(referred_by_doctor_id=doctor_id)
-
             return (
                 qs.annotate(day=TruncDate("date_of_bill"))
                 .values("day")
@@ -260,42 +320,19 @@ class BillChartStatsViewSet(viewsets.ViewSet):
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
         start_of_month = today.replace(day=1)
-        end_of_month_day = monthrange(today.year, today.month)[1]
+        _, end_of_month_day = monthrange(today.year, today.month)
         end_of_month = today.replace(day=end_of_month_day)
         start_of_year = today.replace(month=1, day=1)
         end_of_year = today.replace(month=12, day=31)
-
-        all_time_qs = Bill.objects.filter(center_detail=request.user.center_detail)
-        if doctor_id:
-            all_time_qs = all_time_qs.filter(referred_by_doctor_id=doctor_id)
         
-        all_time_stats = (
-            all_time_qs.annotate(day=TruncDate("date_of_bill"))
-            .values("day")
-            .annotate(
-                total=Count("id"),
-                ultrasound=Count("id", filter=Q(diagnosis_type__category="Ultrasound")),
-                ecg=Count("id", filter=Q(diagnosis_type__category="ECG")),
-                xray=Count("id", filter=Q(diagnosis_type__category="X-Ray")),
-                pathology=Count("id", filter=Q(diagnosis_type__category="Pathology")),
-                franchise_lab=Count("id", filter=Q(diagnosis_type__category="Franchise Lab")),
-            )
-            .order_by("day")
-        )
-
         data = {
             "this_week": get_chart_stats(start_of_week, end_of_week),
             "this_month": get_chart_stats(start_of_month, end_of_month),
             "this_year": get_chart_stats(start_of_year, end_of_year),
-            "all_time": all_time_stats,
         }
         return Response(data)
 
 class DoctorBillGrowthStatsView(APIView):
-    """
-    Provides bill growth statistics (monthly, quarterly, yearly)
-    including total incentives for a single, specified doctor.
-    """
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
@@ -312,14 +349,12 @@ class DoctorBillGrowthStatsView(APIView):
         return first_day, last_day
 
     def aggregate(self, qs):
-        """Aggregates total bills and the sum of incentives."""
         aggregates = qs.aggregate(
             total_bills=Count('id'),
             total_incentive=Sum('incentive_amount')
         )
         return {
             "total_bills": aggregates['total_bills'] or 0,
-            # Handle cases where total_incentive might be None (if no bills)
             "total_incentive": aggregates['total_incentive'] or 0,
         }
 
@@ -328,27 +363,20 @@ class DoctorBillGrowthStatsView(APIView):
 
     def get(self, request, doctor_id, format=None):
         today = now().date()
-
-        # Base queryset is filtered by the doctor_id from the URL
         base_qs = Bill.objects.filter(
             center_detail=request.user.center_detail,
             referred_by_doctor_id=doctor_id
         )
-
-        # Date Range Calculations
         first_curr_month, last_curr_month = self.get_month_range(today.year, today.month)
         prev_month_date = first_curr_month - timedelta(days=1)
         first_prev_month, last_prev_month = self.get_month_range(prev_month_date.year, prev_month_date.month)
-
         first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
         first_prev_year, last_prev_year = date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
-
         current_quarter = (today.month - 1) // 3 + 1
         first_curr_quarter, last_curr_quarter = self.get_quarter_range(today.year, current_quarter)
         prev_quarter_year, prev_quarter = (today.year - 1, 4) if current_quarter == 1 else (today.year, current_quarter - 1)
         first_prev_quarter, last_prev_quarter = self.get_quarter_range(prev_quarter_year, prev_quarter)
 
-        # Aggregation
         data = {
             "current_month": self.aggregate(self.get_filtered_queryset(first_curr_month, last_curr_month, base_qs)),
             "previous_month": self.aggregate(self.get_filtered_queryset(first_prev_month, last_prev_month, base_qs)),
@@ -371,7 +399,7 @@ class BillGrowthStatsView(APIView):
 
     def get_month_range(self, year, month):
         first_day = date(year, month, 1)
-        last_day_num = monthrange(year, month)[1]
+        _, last_day_num = monthrange(year, month)
         last_day = date(year, month, last_day_num)
         return first_day, last_day
 
@@ -387,20 +415,13 @@ class BillGrowthStatsView(APIView):
         return base_qs.filter(date_of_bill__date__range=(start_date, end_date))
 
     def get(self, request, format=None):
-        tz = get_default_timezone()
-        today = now().astimezone(tz).date()
+        today = now().date()
         base_qs = Bill.objects.filter(center_detail=request.user.center_detail)
-
-        # Current vs Previous Month
         first_curr_month, last_curr_month = self.get_month_range(today.year, today.month)
         prev_month_date = first_curr_month - timedelta(days=1)
         first_prev_month, last_prev_month = self.get_month_range(prev_month_date.year, prev_month_date.month)
-
-        # Current vs Previous Year
         first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
         first_prev_year, last_prev_year = date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
-
-        # Current vs Previous Quarter
         current_quarter = (today.month - 1) // 3 + 1
         first_curr_quarter, last_curr_quarter = self.get_quarter_range(today.year, current_quarter)
         prev_quarter_year, prev_quarter = (today.year - 1, 4) if current_quarter == 1 else (today.year, current_quarter - 1)
@@ -415,94 +436,3 @@ class BillGrowthStatsView(APIView):
             "previous_quarter": self.aggregate(self.get_filtered_queryset(first_prev_quarter, last_prev_quarter, base_qs)),
         }
         return Response(data)
-
-class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Bill.objects.all()
-    serializer_class = BillSerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = BillFilter
-    search_fields = [
-        "bill_number",
-        "patient_name",
-        "diagnosis_type__name",
-        "diagnosis_type__category",
-        "referred_by_doctor__first_name",
-        "referred_by_doctor__last_name",
-        "franchise_name",
-        "bill_status",
-    ]
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return qs.order_by("-date_of_bill", "-id")
-
-    @action(detail=False, methods=["get"], url_path="franchise-names")
-    def franchise_names(self, request):
-        franchises = (
-            self.get_queryset()
-            .exclude(franchise_name__isnull=True)
-            .exclude(franchise_name__exact="")
-            .values_list("franchise_name", flat=True)
-            .distinct()
-        )
-        return Response(franchises)
-
-    def perform_create(self, serializer):
-        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, context={"request": request})
-        if request.query_params.get("list_format") == "true":
-            return Response([serializer.data])
-        return Response(serializer.data)
-
-    def perform_update(self, serializer):
-        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
-
-class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = PatientReport.objects.all()
-    serializer_class = PatientReportSerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = PatientReportFilter
-    search_fields = ['patient_name', 'report_title']
-
-    def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
-        
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        if request.query_params.get("list_format") == "true":
-            return Response([serializer.data])
-        return Response(serializer.data)
-
-    def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
-
-class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = SampleTestReport.objects.all()
-    serializer_class = SampleTestReportSerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = SampleTestReportFilter
-    search_fields = ["diagnosis_type", "diagnosis_name", "center_detail__name"]
-    
-    def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
-        
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        if request.query_params.get("list_format") == "true":
-            return Response([serializer.data])
-        return Response(serializer.data)
-
-    def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)

@@ -1,196 +1,236 @@
-from authentication.serializers import *
-from center_detail.serializers import *
-from .models import *
+# serializers.py
+
 from rest_framework import serializers
-from .models import *
+from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
+
+from authentication.serializers import MinimalStaffAccountSerializer
+from center_detail.serializers import MinimalCenterDetailSerializer
+from .models import Bill, DiagnosisType, Doctor, FranchiseName, PatientReport, SampleTestReport
+
+# --- Minimal Serializers (No Changes Needed) ---
+# These are well-designed and serve their purpose perfectly.
 
 class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DiagnosisType
         fields = ['id', 'name', 'category', 'price']
+
 class MinimalBillSerializer(serializers.ModelSerializer):
-    
     class Meta:
         model = Bill
         fields = ['id', 'bill_number', 'patient_name', 'patient_age', 'patient_sex']
+
 class MinimalDoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
-        fields= ['id','first_name', 'last_name', 'address', 'email']
+        fields = ['id', 'first_name', 'last_name', 'address', 'email']
+
+
+# --- Main Model Serializers (Refactored) ---
+
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
+    center_detail = MinimalCenterDetailSerializer(read_only=True)
+
     class Meta:
         model = DiagnosisType
         fields = '__all__'
-        read_only_fields = ['center_detail']  # ✅ center_detail auto-filled
-
-    def validate(self, attrs):
-        # only check if center_detail is already present (like during update from admin)
-        user_center = self.context['request'].user.center_detail
-
-        if attrs.get('center_detail') and attrs['center_detail'] != user_center:
-            raise serializers.ValidationError({
-                'center_detail': 'Diagnosis type must belong to your center.'
-            })
-
-        return attrs
-
-
-
+        read_only_fields = ['center_detail']
+        # ✅ REFACTORED: Use a built-in validator for uniqueness within a center.
+        validators = [
+            UniqueTogetherValidator(
+                queryset=DiagnosisType.objects.all(),
+                fields=['name', 'center_detail'],
+                message="This diagnosis type already exists in your center."
+            )
+        ]
 class DoctorSerializer(serializers.ModelSerializer):
+    center_detail = MinimalCenterDetailSerializer(read_only=True)
+
     class Meta:
         model = Doctor
-        fields = "__all__"
-        read_only_fields = ['id','center_detail']
+        fields = [
+            'id', 
+            'first_name', 
+            'last_name', 
+            'hospital_name', 
+            'address', 
+            'phone_number', 
+            'email', 
+            'ultrasound_percentage', 
+            'pathology_percentage', 
+            'ecg_percentage', 
+            'xray_percentage', 
+            'franchise_lab_percentage', 
+            'center_detail'
+        ]
+        read_only_fields = ['id', 'center_detail']
+        # ✅ The UniqueTogetherValidator is removed from here because it
+        # cannot work with a server-set, read_only field like 'center_detail'.
+
     def validate(self, attrs):
+        """
+        Check for uniqueness of phone_number within the user's center.
+        """
+        # Get the user's center from the request context provided by the ViewSet.
         user_center = self.context['request'].user.center_detail
+        phone_number = attrs.get('phone_number')
 
-        if attrs.get('center_detail') and attrs['center_detail'] != user_center:
+        # Build the queryset to check for duplicates.
+        queryset = Doctor.objects.filter(
+            phone_number=phone_number, 
+            center_detail=user_center
+        )
+
+        # On update (self.instance is available), exclude the current doctor
+        # from the check to allow saving without changing the phone number.
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        # If any other doctor with this phone number exists in the center, raise an error.
+        if queryset.exists():
             raise serializers.ValidationError({
-                'center_detail': 'Doctor must belong to your center.'
+                'phone_number': 'A doctor with this phone number already exists in your center.'
             })
-
+            
         return attrs
-
 
 class FranchiseNameSerializer(serializers.ModelSerializer):
     center_detail = MinimalCenterDetailSerializer(read_only=True)
 
     class Meta:
         model = FranchiseName
-        fields = '__all__'
+        fields = ['id', 'franchise_name', 'address', 'phone_number', 'center_detail']
         read_only_fields = ('center_detail',)
+        # The UniqueTogetherValidator is removed from here.
 
     def validate(self, attrs):
-        user = self.context['request'].user
-        user_center = user.center_detail
-        attrs['center_detail'] = user_center
+        """
+        Manually check for uniqueness of franchise_name within the user's center.
+        """
+        # Get the user's center from the request context.
+        user_center = self.context['request'].user.center_detail
+        franchise_name = attrs.get('franchise_name')
 
-        # Prevent duplicate franchise name within same center
-        if FranchiseName.objects.filter(franchise_name=attrs['franchise_name'], center_detail=user_center).exists():
-            raise serializers.ValidationError({'franchise_name': 'This franchise name already exists in your center.'})
+        # Build the queryset to check for duplicates.
+        queryset = FranchiseName.objects.filter(
+            franchise_name=franchise_name,
+            center_detail=user_center
+        )
+
+        # On update, exclude the current instance from the check.
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        # If any other franchise with this name exists in the center, raise an error.
+        if queryset.exists():
+            raise serializers.ValidationError({
+                'franchise_name': 'This franchise name already exists in your center.'
+            })
+            
         return attrs
-
 class BillSerializer(serializers.ModelSerializer):
-    # INPUT fields
+    # --- Write-Only Fields (for input) ---
     diagnosis_type = serializers.PrimaryKeyRelatedField(
         queryset=DiagnosisType.objects.all(),
         write_only=True
     )
     referred_by_doctor = serializers.PrimaryKeyRelatedField(
         queryset=Doctor.objects.all(),
+        write_only=True
+    )
+    franchise_name = serializers.PrimaryKeyRelatedField(
+        queryset=FranchiseName.objects.all(),
         write_only=True,
         required=False,
         allow_null=True
     )
 
-    # OUTPUT nested fields
+    # --- Read-Only Fields (for output) ---
     diagnosis_type_output = MinimalDiagnosisTypeSerializer(source="diagnosis_type", read_only=True)
     referred_by_doctor_output = MinimalDoctorSerializer(source="referred_by_doctor", read_only=True)
+    franchise_name_output = FranchiseNameSerializer(source='franchise_name', read_only=True)
     test_done_by = MinimalStaffAccountSerializer(read_only=True)
     center_detail = MinimalCenterDetailSerializer(read_only=True)
-
-    # Extra field for search highlight
-    match_reason = serializers.SerializerMethodField()
+    match_reason = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Bill
-        fields = "__all__"
+        fields = [
+            'id', 'bill_number', 'date_of_test', 'patient_name', 'patient_age',
+            'patient_sex', 'date_of_bill', 'bill_status', 'total_amount',
+            'paid_amount', 'disc_by_center', 'disc_by_doctor', 'incentive_amount',
+
+            # Include write-only fields so DRF recognizes them for input
+            'diagnosis_type', 'referred_by_doctor', 'franchise_name',
+
+            # Output fields for nested relationships
+            'diagnosis_type_output', 'referred_by_doctor_output', 'franchise_name_output',
+            'test_done_by', 'center_detail', 'match_reason',
+        ]
         read_only_fields = (
-            "bill_number",
-            "test_done_by",
-            "center_detail",
-            "incentive_amount",
-            "total_amount",
+            "bill_number", "test_done_by", "center_detail",
+            "incentive_amount", "total_amount",
         )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'center_detail'):
+            user_center = request.user.center_detail
+            self.fields['diagnosis_type'].queryset = DiagnosisType.objects.filter(center_detail=user_center)
+            self.fields['referred_by_doctor'].queryset = Doctor.objects.filter(center_detail=user_center)
+            self.fields['franchise_name'].queryset = FranchiseName.objects.filter(center_detail=user_center)
+
     def get_match_reason(self, obj):
-        query = self.context.get("query", "").lower()
-        if not query:
-            return None
-
-        reasons = []
-        if query in str(obj.bill_number).lower():
-            reasons.append("Bill Number")
-        if query in (obj.patient_name or "").lower():
-            reasons.append("Patient Name")
-        if query in getattr(obj.diagnosis_type, "name", "").lower():
-            reasons.append("Diagnosis Type")
-        if query in (getattr(obj.referred_by_doctor, "first_name", "") + " " +
-                     getattr(obj.referred_by_doctor, "last_name", "")).lower():
-            reasons.append("Referred Doctor")
-        if query in (obj.franchise_name or "").lower():
-            reasons.append("Franchise")
-        if query in (obj.bill_status or "").lower():
-            reasons.append("Bill Status")
-
-        return reasons if reasons else None
+        return None
 
     def validate(self, attrs):
-        user = self.context["request"].user
-        user_center = user.center_detail
-        attrs["center_detail"] = user_center
+        user = self.context['request'].user
+        center = user.center_detail
+        
+        attrs['center_detail'] = center
+        attrs['test_done_by'] = user
 
-        diagnosis_type = attrs.get("diagnosis_type")
-        if diagnosis_type and diagnosis_type.center_detail != user_center:
-            raise serializers.ValidationError({
-                "diagnosis_type": "Diagnosis type must belong to your center."
-            })
+        instance = Bill(**attrs) if not self.instance else self.instance
+        if self.instance:
+            for attr, value in attrs.items():
+                setattr(instance, attr, value)
 
-        referred_by_doctor = attrs.get("referred_by_doctor")
-        if referred_by_doctor and referred_by_doctor.center_detail != user_center:
-            raise serializers.ValidationError({
-                "referred_by_doctor": "Doctor must belong to your center."
-            })
-
-        instance = Bill(**attrs)
         try:
             instance.full_clean()
         except DjangoValidationError as e:
             raise DRFValidationError(e.message_dict)
 
+        attrs.pop('center_detail')
+        attrs.pop('test_done_by')
+
         return attrs
 
+
 class PatientReportSerializer(serializers.ModelSerializer):
-    bill = serializers.PrimaryKeyRelatedField(queryset=Bill.objects.all(), write_only=True)
     bill_output = MinimalBillSerializer(read_only=True, source='bill')
-    
-    # Make center_detail hidden and automatically assigned
-    center_detail = serializers.HiddenField(default=serializers.CurrentUserDefault())
     center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+    
+    # ✅ REFACTORED: queryset is now filtered in __init__ for proactive validation.
+    bill = serializers.PrimaryKeyRelatedField(queryset=Bill.objects.all(), write_only=True)
 
     class Meta:
         model = PatientReport
-        fields = '__all__'
+        fields = ['id', 'report_file', 'bill', 'bill_output', 'center_detail_output']
 
-    def validate(self, attrs):
-        user = self.context['request'].user
-        user_center = user.center_detail
-
-        # Forcefully assign center_detail from user
-        attrs['center_detail'] = user_center
-
-        if attrs.get('bill') and attrs['bill'].center_detail != user_center:
-            raise serializers.ValidationError({
-                'bill': 'Patient report must belong to your center.'
-            })
-
-        return attrs
-
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'center_detail'):
+            user_center = request.user.center_detail
+            self.fields['bill'].queryset = Bill.objects.filter(center_detail=user_center)
 
 class SampleTestReportSerializer(serializers.ModelSerializer):
-    center_detail = serializers.PrimaryKeyRelatedField(queryset= CenterDetail.objects.all(), write_only=True)
     center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
+
     class Meta:
         model = SampleTestReport
-        fields = ['id', 'diagnosis_name', 'diagnosis_type', 'sample_report_file', 'center_detail','center_detail_output']
-
-    def validate(self, attrs):
-        user_center = getattr(self.context['request'].user, 'center_detail', None)
-        if not user_center or attrs['center_detail'] != user_center:
-            raise serializers.ValidationError({
-                'center_detail': 'Sample test report must belong to your center.'
-    })
-
-        return attrs
+        fields = ['id', 'diagnosis_name', 'diagnosis_type', 'sample_report_file', 'center_detail_output']
+        # ✅ REFACTORED: No validation method needed. `center_detail` is now set in the ViewSet.
