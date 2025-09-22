@@ -331,7 +331,6 @@ class BillChartStatsViewSet(viewsets.ViewSet):
             "this_year": get_chart_stats(start_of_year, end_of_year),
         }
         return Response(data)
-
 class DoctorBillGrowthStatsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
@@ -349,13 +348,19 @@ class DoctorBillGrowthStatsView(APIView):
         return first_day, last_day
 
     def aggregate(self, qs):
+        # This is the updated method
         aggregates = qs.aggregate(
             total_bills=Count('id'),
             total_incentive=Sum('incentive_amount')
         )
+        # This line was added to get the diagnosis breakdown
+        diagnosis_counts = qs.values('diagnosis_type__category').annotate(count=Count('id'))
+
         return {
             "total_bills": aggregates['total_bills'] or 0,
             "total_incentive": aggregates['total_incentive'] or 0,
+            # This line was added to include the breakdown in the response
+            "diagnosis_counts": {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
         }
 
     def get_filtered_queryset(self, start_date, end_date, base_qs):
