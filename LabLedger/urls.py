@@ -1,6 +1,7 @@
 
 
 from django.contrib import admin
+from authentication.admin import custom_admin_site
 from django.urls import path, include
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -14,7 +15,7 @@ from django.conf.urls.static import static
 from authentication.views import *
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin/', custom_admin_site.urls),
     path('', health_check),
     path('api/app-info/', AppInfoView.as_view(), name='app-info'),
     path('verify-auth/', ValidateTokenView.as_view(), name='validate-token'),

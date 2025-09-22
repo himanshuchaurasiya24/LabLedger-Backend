@@ -29,24 +29,40 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
 
 
 # --- Main Model Serializers (Refactored) ---
-
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
-    center_detail = MinimalCenterDetailSerializer(read_only=True)
+    # center_detail = MinimalCenterDetailSerializer(read_only=True)
 
     class Meta:
         model = DiagnosisType
-        fields = '__all__'
+        fields = ['id', 'name', 'category','price']
         read_only_fields = ['center_detail']
-        # ✅ REFACTORED: Use a built-in validator for uniqueness within a center.
-        validators = [
-            UniqueTogetherValidator(
-                queryset=DiagnosisType.objects.all(),
-                fields=['name', 'center_detail'],
-                message="This diagnosis type already exists in your center."
-            )
-        ]
+
+    def validate(self, attrs):
+        """
+        Manually check for the uniqueness of 'name' within the user's center.
+        """
+        user_center = self.context['request'].user.center_detail
+        name = attrs.get('name')
+
+        # Build a queryset to check for existing names in the same center.
+        queryset = DiagnosisType.objects.filter(
+            name=name,
+            center_detail=user_center
+        )
+
+        # If we are updating an existing instance, exclude it from the check.
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        # If any other diagnosis type with this name exists, raise an error.
+        if queryset.exists():
+            raise serializers.ValidationError({
+                'name': 'This diagnosis type already exists in your center.'
+            })
+            
+        return attrs
 class DoctorSerializer(serializers.ModelSerializer):
-    center_detail = MinimalCenterDetailSerializer(read_only=True)
+    # center_detail = MinimalCenterDetailSerializer(read_only=True)
 
     class Meta:
         model = Doctor
@@ -62,8 +78,8 @@ class DoctorSerializer(serializers.ModelSerializer):
             'pathology_percentage', 
             'ecg_percentage', 
             'xray_percentage', 
-            'franchise_lab_percentage', 
-            'center_detail'
+            'franchise_lab_percentage'
+            # 'center_detail'
         ]
         read_only_fields = ['id', 'center_detail']
         # ✅ The UniqueTogetherValidator is removed from here because it
@@ -97,13 +113,14 @@ class DoctorSerializer(serializers.ModelSerializer):
         return attrs
 
 class FranchiseNameSerializer(serializers.ModelSerializer):
-    center_detail = MinimalCenterDetailSerializer(read_only=True)
+    # center_detail = MinimalCenterDetailSerializer(read_only=True)
 
     class Meta:
         model = FranchiseName
-        fields = ['id', 'franchise_name', 'address', 'phone_number', 'center_detail']
+        fields = ['id', 'franchise_name', 'address', 'phone_number'
+        #  'center_detail'
+         ]
         read_only_fields = ('center_detail',)
-        # The UniqueTogetherValidator is removed from here.
 
     def validate(self, attrs):
         """
