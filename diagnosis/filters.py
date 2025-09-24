@@ -64,9 +64,9 @@ class BillFilter(django_filters.FilterSet):
     bill_end_date = django_filters.DateFilter(field_name='date_of_bill__date', lookup_expr='lte')
     bill_year = django_filters.NumberFilter(field_name='date_of_bill__year', lookup_expr='exact')
     bill_month = django_filters.NumberFilter(field_name='date_of_bill__month', lookup_expr='exact')
+    franchise_name_id = django_filters.NumberFilter(field_name='franchise_name__id')
 
     bill_status = django_filters.CharFilter(field_name='bill_status', lookup_expr='iexact')
-    franchise_name = django_filters.CharFilter(field_name='franchise_name', lookup_expr='icontains')
 
     total_amount = django_filters.NumberFilter(field_name='total_amount')
     paid_amount = django_filters.NumberFilter(field_name='paid_amount')
