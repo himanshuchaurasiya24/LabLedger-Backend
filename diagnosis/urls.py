@@ -15,6 +15,7 @@ urlpatterns = [
     path('bills/', include(router.urls)),
     path('patient-reports/', include(router.urls)),
     path('doctors/', include(router.urls)),
+    path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
     path('doctors/<int:doctor_id>/growth-stats/', DoctorBillGrowthStatsView.as_view(), name='doctor-growth-stats'),
     path('diagnosis-types/', include(router.urls)),
     path('sample-test-reports/', include(router.urls)),

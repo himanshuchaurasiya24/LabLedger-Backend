@@ -441,3 +441,97 @@ class BillGrowthStatsView(APIView):
             "previous_quarter": self.aggregate(self.get_filtered_queryset(first_prev_quarter, last_prev_quarter, base_qs)),
         }
         return Response(data)
+
+# In views.py
+
+class DoctorIncentiveStatsView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+
+    def get_date_ranges(self, today):
+        """Helper to calculate all required start and end dates."""
+        # Month Ranges
+        first_curr_month = today.replace(day=1)
+        _, last_day_num = monthrange(today.year, today.month)
+        last_curr_month = today.replace(day=last_day_num)
+        
+        last_prev_month = first_curr_month - timedelta(days=1)
+        first_prev_month = last_prev_month.replace(day=1)
+
+        # Quarter Ranges
+        current_quarter = (today.month - 1) // 3 + 1
+        if current_quarter == 1:
+            first_curr_quarter, last_curr_quarter = date(today.year, 1, 1), date(today.year, 3, 31)
+            first_prev_quarter, last_prev_quarter = date(today.year - 1, 10, 1), date(today.year - 1, 12, 31)
+        elif current_quarter == 2:
+            first_curr_quarter, last_curr_quarter = date(today.year, 4, 1), date(today.year, 6, 30)
+            first_prev_quarter, last_prev_quarter = date(today.year, 1, 1), date(today.year, 3, 31)
+        elif current_quarter == 3:
+            first_curr_quarter, last_curr_quarter = date(today.year, 7, 1), date(today.year, 9, 30)
+            first_prev_quarter, last_prev_quarter = date(today.year, 4, 1), date(today.year, 6, 30)
+        else: # Quarter 4
+            first_curr_quarter, last_curr_quarter = date(today.year, 10, 1), date(today.year, 12, 31)
+            first_prev_quarter, last_prev_quarter = date(today.year, 7, 1), date(today.year, 9, 30)
+            
+        # Year Ranges
+        first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
+        first_prev_year, last_prev_year = date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
+
+        return {
+            "current_month": (first_curr_month, last_curr_month),
+            "previous_month": (first_prev_month, last_prev_month),
+            "current_quarter": (first_curr_quarter, last_curr_quarter),
+            "previous_quarter": (first_prev_quarter, last_prev_quarter),
+            "current_year": (first_curr_year, last_curr_year),
+            "previous_year": (first_prev_year, last_prev_year),
+        }
+
+    def aggregate_incentives(self, qs):
+        """Helper to perform the incentive aggregation on a queryset."""
+        total_incentive_data = qs.aggregate(total=Sum('incentive_amount', default=0))
+        
+        breakdown_data = qs.values('diagnosis_type__category').annotate(
+            category_total=Sum('incentive_amount')
+        ).order_by()
+
+        return {
+            "total_bills": total_incentive_data['total'] or 0,
+            "diagnosis_counts": {
+                item['diagnosis_type__category']: item['category_total']
+                for item in breakdown_data if item['diagnosis_type__category']
+            }
+        }
+
+    def get(self, request, doctor_id, format=None):
+        # 1. Start with the base queryset
+        base_qs = Bill.objects.filter(
+            center_detail=request.user.center_detail,
+            referred_by_doctor_id=doctor_id
+        )
+
+        # 2. Apply optional filters from query parameters
+        franchise_id = request.query_params.get('franchise_name_id')
+        diagnosis_type_id = request.query_params.get('diagnosis_type_id')
+        bill_statuses = request.query_params.getlist('bill_status')
+
+        if franchise_id:
+            base_qs = base_qs.filter(franchise_name_id=franchise_id)
+        if diagnosis_type_id:
+            base_qs = base_qs.filter(diagnosis_type_id=diagnosis_type_id)
+        if bill_statuses:
+            status_query = Q()
+            for status in bill_statuses:
+                status_query |= Q(bill_status__iexact=status)
+            base_qs = base_qs.filter(status_query)
+
+        # 3. Get all date ranges and calculate stats for each period
+        today = now().date()
+        # ✅ FIXED THE TYPO HERE (get_date_ranges is now plural)
+        date_ranges = self.get_date_ranges(today)
+        
+        response_data = {}
+        for period, (start_date, end_date) in date_ranges.items():
+            period_qs = base_qs.filter(date_of_bill__date__range=(start_date, end_date))
+            response_data[period] = self.aggregate_incentives(period_qs)
+            
+        return Response(response_data)
