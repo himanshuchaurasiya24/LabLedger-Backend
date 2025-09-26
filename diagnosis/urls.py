@@ -1,6 +1,8 @@
 from rest_framework.routers import DefaultRouter
 from .views import *
 from django.urls import path, include
+
+# 1. Register all your ViewSets with the router
 router = DefaultRouter()
 router.register(r'bill', BillViewset, basename='bill')
 router.register(r'patient-report', PatientReportViewset, basename='patient-report')
@@ -11,16 +13,11 @@ router.register(r'franchise-name', FranchiseNameViewSet, basename='franchise-nam
 router.register(r'referral-stat', ReferralStatsViewSet, basename='referral-stats')
 router.register(r'bill-chart-stat', BillChartStatsViewSet, basename='bill-chart-stats')
 
+# 2. Define your URL patterns
 urlpatterns = [
-    path('bills/', include(router.urls)),
-    path('patient-reports/', include(router.urls)),
-    path('doctors/', include(router.urls)),
-    path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
+    path('', include(router.urls)), 
+        path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
     path('doctors/<int:doctor_id>/growth-stats/', DoctorBillGrowthStatsView.as_view(), name='doctor-growth-stats'),
-    path('diagnosis-types/', include(router.urls)),
-    path('sample-test-reports/', include(router.urls)),
-    path('referral-stats/', include(router.urls)),
-    path('bill-chart-stats/', include(router.urls)),
-    path('franchise-names/', include(router.urls)),
-     path('bills/growth-stats/', BillGrowthStatsView.as_view(), name='bill-growth-stats'),
+    path('bills/growth-stats/', BillGrowthStatsView.as_view(), name='bill-growth-stats'),
+    path('incentives/', FlexibleIncentiveReportView.as_view(), name='flexible-incentive-report'),
 ]

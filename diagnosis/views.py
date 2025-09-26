@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, date
 from calendar import monthrange
-
+from itertools import groupby
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Concat, TruncDate
 from django.utils.timezone import now, make_aware, get_default_timezone
@@ -12,10 +12,9 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
-
 from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
 from .models import Bill, Doctor, DiagnosisType, FranchiseName, PatientReport, SampleTestReport
-from .serializers import BillSerializer, DoctorSerializer, DiagnosisTypeSerializer, FranchiseNameSerializer, PatientReportSerializer, SampleTestReportSerializer
+from .serializers import BillSerializer, DoctorSerializer, DiagnosisTypeSerializer, FranchiseNameSerializer, PatientReportSerializer, SampleTestReportSerializer, BillDetailForIncentiveReportSerializer
 from .filters import BillFilter, DoctorFilter, DiagnosisTypeFilter, PatientReportFilter, SampleTestReportFilter
 from .pagination import StandardResultsSetPagination
 
@@ -442,8 +441,6 @@ class BillGrowthStatsView(APIView):
         }
         return Response(data)
 
-# In views.py
-
 class DoctorIncentiveStatsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
@@ -534,4 +531,83 @@ class DoctorIncentiveStatsView(APIView):
             period_qs = base_qs.filter(date_of_bill__date__range=(start_date, end_date))
             response_data[period] = self.aggregate_incentives(period_qs)
             
+        return Response(response_data)
+
+
+class FlexibleIncentiveReportView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
+
+    def get(self, request, format=None):
+        # 1. Determine the date range for the report
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        
+        if start_date_str and end_date_str:
+            try:
+                start_date = date.fromisoformat(start_date_str)
+                end_date = date.fromisoformat(end_date_str)
+            except ValueError:
+                return Response({"error": "Invalid date format. Please use YYYY-MM-DD."}, status=400)
+        else:
+            # Default to the first day of the current month up to today's date
+            today = now().date()
+            start_date = today.replace(day=1)
+            end_date = today
+
+        # 2. Build the base queryset with initial filters
+        base_qs = Bill.objects.filter(
+            center_detail=request.user.center_detail,
+            date_of_bill__date__range=(start_date, end_date)
+        )
+
+        # 3. Apply all flexible, multi-value filters from query parameters
+        doctor_ids = request.query_params.getlist('doctor_id')
+        franchise_ids = request.query_params.getlist('franchise_id')
+        diagnosis_type_ids = request.query_params.getlist('diagnosis_type_id')
+        bill_statuses = request.query_params.getlist('bill_status')
+
+        if doctor_ids:
+            base_qs = base_qs.filter(referred_by_doctor_id__in=doctor_ids)
+        
+        if franchise_ids:
+            base_qs = base_qs.filter(franchise_name_id__in=franchise_ids)
+            
+        if diagnosis_type_ids:
+            base_qs = base_qs.filter(diagnosis_type_id__in=diagnosis_type_ids)
+        
+        # 4. Handle the bill_status filter, defaulting to 'Fully Paid'
+        if bill_statuses:
+            status_query = Q()
+            for status in bill_statuses:
+                status_query |= Q(bill_status__iexact=status)
+            base_qs = base_qs.filter(status_query)
+        else:
+            base_qs = base_qs.filter(bill_status='Fully Paid')
+
+        # 5. Fetch all data in one optimized query, ordered for grouping
+        final_bills = base_qs.select_related(
+            'referred_by_doctor', 'diagnosis_type', 'franchise_name'
+        ).order_by('referred_by_doctor__first_name', 'referred_by_doctor__last_name')
+
+        # 6. Group bills by doctor and format the final response
+        response_data = []
+        for doctor, bills_iterator in groupby(final_bills, key=lambda bill: bill.referred_by_doctor):
+            
+            doctor_bills = list(bills_iterator)
+            
+            # Use a generator expression with sum() for a concise calculation
+            total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
+            
+            serialized_bills = BillDetailForIncentiveReportSerializer(doctor_bills, many=True).data
+
+            if serialized_bills:
+                response_data.append({
+                    "doctor_id": doctor.id,
+                    "first_name": doctor.first_name,
+                    "last_name": doctor.last_name,
+                    "total_incentive": total_incentive,
+                    "bills": serialized_bills
+                })
+
         return Response(response_data)

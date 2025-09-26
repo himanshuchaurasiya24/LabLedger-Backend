@@ -147,6 +147,7 @@ class FranchiseNameSerializer(serializers.ModelSerializer):
             })
             
         return attrs
+
 class BillSerializer(serializers.ModelSerializer):
     # --- Write-Only Fields (for input) ---
     diagnosis_type = serializers.PrimaryKeyRelatedField(
@@ -178,11 +179,7 @@ class BillSerializer(serializers.ModelSerializer):
             'id', 'bill_number', 'date_of_test', 'patient_name', 'patient_age',
             'patient_sex', 'date_of_bill', 'bill_status', 'total_amount',
             'paid_amount', 'disc_by_center', 'disc_by_doctor', 'incentive_amount',
-
-            # Include write-only fields so DRF recognizes them for input
             'diagnosis_type', 'referred_by_doctor', 'franchise_name',
-
-            # Output fields for nested relationships
             'diagnosis_type_output', 'referred_by_doctor_output', 'franchise_name_output',
             'test_done_by', 'center_detail', 'match_reason',
         ]
@@ -205,25 +202,73 @@ class BillSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = self.context['request'].user
-        center = user.center_detail
-        
-        attrs['center_detail'] = center
+
+        # ✅ START: Corrected logic for handling franchise_name on updates
+        # Determine what the final diagnosis_type will be.
+        # If a new one is being sent, use it. Otherwise, use the existing one on the instance.
+        if 'diagnosis_type' in attrs:
+            final_diagnosis_type = attrs.get('diagnosis_type')
+        elif self.instance:
+            final_diagnosis_type = self.instance.diagnosis_type
+        else:
+            final_diagnosis_type = None
+
+        # Based on the final diagnosis_type, automatically clean the franchise_name attribute.
+        if final_diagnosis_type and final_diagnosis_type.category != 'Franchise Lab':
+            # If the category is not 'Franchise Lab', force franchise_name to be null.
+            attrs['franchise_name'] = None
+        # ✅ END: Corrected logic
+
+        # Temporarily add user and center details to run model validation
+        attrs['center_detail'] = user.center_detail
         attrs['test_done_by'] = user
 
-        instance = Bill(**attrs) if not self.instance else self.instance
-        if self.instance:
-            for attr, value in attrs.items():
-                setattr(instance, attr, value)
+        # Create a temporary model instance with the final, validated attributes
+        # This handles both create (self.instance is None) and update cases
+        instance = self.instance or Bill()
+        for attr, value in attrs.items():
+            setattr(instance, attr, value)
 
         try:
+            # Run the model's clean() method on the temporary instance
             instance.full_clean()
         except DjangoValidationError as e:
             raise DRFValidationError(e.message_dict)
 
+        # Remove temporary keys before the serializer saves the data
         attrs.pop('center_detail')
         attrs.pop('test_done_by')
 
         return attrs
+
+class BillDetailForIncentiveReportSerializer(serializers.ModelSerializer):
+    """
+    A read-only serializer for displaying nested bill details in reports.
+    """
+    diagnosis_type = serializers.CharField(source='diagnosis_type.name', read_only=True)
+    franchise_name = serializers.CharField(source='franchise_name.franchise_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Bill
+        fields = [
+            
+            'bill_number',
+            'patient_name',
+            'patient_age',
+            'patient_sex',
+            'patient_phone_number', 
+            'diagnosis_type',
+            'franchise_name',
+            'total_amount',
+            'incentive_amount',
+            'disc_by_doctor',       
+            'disc_by_center',       
+            'date_of_bill',
+            'paid_amount',
+            'bill_status',
+            'id'
+        ]
+
 
 
 class PatientReportSerializer(serializers.ModelSerializer):
