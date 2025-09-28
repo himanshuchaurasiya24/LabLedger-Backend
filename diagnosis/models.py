@@ -194,14 +194,14 @@ class Bill(models.Model):
 
         if self.referred_by_doctor and self.diagnosis_type:
             doctor = self.referred_by_doctor
-            category = self.diagnosis_type.category.lower().replace('-', '_') # Sanitize category name
+            category = self.diagnosis_type.category
             
             percentage_map = {
-                'ultrasound': doctor.ultrasound_percentage,
-                'pathology': doctor.pathology_percentage,
-                'ecg': doctor.ecg_percentage,
-                'x_ray': doctor.xray_percentage,
-                'franchise_lab': doctor.franchise_lab_percentage,
+                'Ultrasound': doctor.ultrasound_percentage,
+                'Pathology': doctor.pathology_percentage,
+                'ECG': doctor.ecg_percentage,
+                'X-Ray': doctor.xray_percentage,
+                'Franchise Lab': doctor.franchise_lab_percentage,
             }
             percent = percentage_map.get(category, 0)
             full_incentive = (total * percent) // 100

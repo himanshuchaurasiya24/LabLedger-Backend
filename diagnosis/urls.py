@@ -16,7 +16,7 @@ router.register(r'bill-chart-stat', BillChartStatsViewSet, basename='bill-chart-
 # 2. Define your URL patterns
 urlpatterns = [
     path('', include(router.urls)), 
-        path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
+    path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
     path('doctors/<int:doctor_id>/growth-stats/', DoctorBillGrowthStatsView.as_view(), name='doctor-growth-stats'),
     path('bills/growth-stats/', BillGrowthStatsView.as_view(), name='bill-growth-stats'),
     path('incentives/', FlexibleIncentiveReportView.as_view(), name='flexible-incentive-report'),

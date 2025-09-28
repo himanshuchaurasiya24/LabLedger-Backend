@@ -599,7 +599,7 @@ class FlexibleIncentiveReportView(APIView):
             # Use a generator expression with sum() for a concise calculation
             total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
             
-            serialized_bills = BillDetailForIncentiveReportSerializer(doctor_bills, many=True).data
+            serialized_bills = BillSerializer(doctor_bills, many=True).data
 
             if serialized_bills:
                 response_data.append({

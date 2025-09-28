@@ -79,11 +79,8 @@ class DoctorSerializer(serializers.ModelSerializer):
             'ecg_percentage', 
             'xray_percentage', 
             'franchise_lab_percentage'
-            # 'center_detail'
         ]
         read_only_fields = ['id', 'center_detail']
-        # ✅ The UniqueTogetherValidator is removed from here because it
-        # cannot work with a server-set, read_only field like 'center_detail'.
 
     def validate(self, attrs):
         """
@@ -245,29 +242,29 @@ class BillDetailForIncentiveReportSerializer(serializers.ModelSerializer):
     """
     A read-only serializer for displaying nested bill details in reports.
     """
-    diagnosis_type = serializers.CharField(source='diagnosis_type.name', read_only=True)
-    franchise_name = serializers.CharField(source='franchise_name.franchise_name', read_only=True, allow_null=True)
+    # diagnosis_type = serializers.CharField(source='diagnosis_type.name', read_only=True)
+    # franchise_name = serializers.CharField(source='franchise_name.franchise_name', read_only=True, allow_null=True)
 
     class Meta:
         model = Bill
-        fields = [
-            
-            'bill_number',
-            'patient_name',
-            'patient_age',
-            'patient_sex',
-            'patient_phone_number', 
-            'diagnosis_type',
-            'franchise_name',
-            'total_amount',
-            'incentive_amount',
-            'disc_by_doctor',       
-            'disc_by_center',       
-            'date_of_bill',
-            'paid_amount',
-            'bill_status',
-            'id'
-        ]
+        # fields = [
+        #     'bill_number',
+        #     'patient_name',
+        #     'patient_age',
+        #     'patient_sex',
+        #     'patient_phone_number', 
+        #     'diagnosis_type',
+        #     'franchise_name',
+        #     'total_amount',
+        #     'incentive_amount',
+        #     'disc_by_doctor',       
+        #     'disc_by_center',       
+        #     'date_of_bill',
+        #     'paid_amount',
+        #     'bill_status',
+        #     'id'
+        # ]
+        fields = "__all__"
 
 
 
