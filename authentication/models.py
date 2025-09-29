@@ -82,6 +82,10 @@ class StaffAccount(AbstractUser):
         help_text='If true, the user is locked out and cannot log in.'
     )
     
+    # ✅ Fields required by the custom token serializer
+    failed_login_attempts = models.IntegerField(default=0)
+    lockout_until = models.DateTimeField(null=True, blank=True)
+    
     # Manager and required settings
     objects = StaffAccountManager()
 

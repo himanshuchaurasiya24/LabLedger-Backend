@@ -5,6 +5,6 @@ router = DefaultRouter()
 router.register(r'center-detail', CenterDetailViewSet)
 router.register(r'subscription', SubscriptionViewSet)
 urlpatterns = [
-    path('center-details/', include(router.urls)),
-    path('subscriptions/', include(router.urls)),
+    path('', include(router.urls)),
+    path('', include(router.urls)),
 ]
