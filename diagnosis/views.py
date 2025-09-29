@@ -13,9 +13,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
-from .models import Bill, Doctor, DiagnosisType, FranchiseName, PatientReport, SampleTestReport
-from .serializers import BillSerializer, DoctorSerializer, DiagnosisTypeSerializer, FranchiseNameSerializer, PatientReportSerializer, SampleTestReportSerializer, BillDetailForIncentiveReportSerializer
-from .filters import BillFilter, DoctorFilter, DiagnosisTypeFilter, PatientReportFilter, SampleTestReportFilter
+from .models import *
+from .serializers import *
+from .filters import *
 from .pagination import StandardResultsSetPagination
 
 # --- Mixins and Base Permissions ---
@@ -533,7 +533,6 @@ class DoctorIncentiveStatsView(APIView):
             
         return Response(response_data)
 
-
 class FlexibleIncentiveReportView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
@@ -550,7 +549,6 @@ class FlexibleIncentiveReportView(APIView):
             except ValueError:
                 return Response({"error": "Invalid date format. Please use YYYY-MM-DD."}, status=400)
         else:
-            # Default to the first day of the current month up to today's date
             today = now().date()
             start_date = today.replace(day=1)
             end_date = today
@@ -576,7 +574,6 @@ class FlexibleIncentiveReportView(APIView):
         if diagnosis_type_ids:
             base_qs = base_qs.filter(diagnosis_type_id__in=diagnosis_type_ids)
         
-        # 4. Handle the bill_status filter, defaulting to 'Fully Paid'
         if bill_statuses:
             status_query = Q()
             for status in bill_statuses:
@@ -595,19 +592,22 @@ class FlexibleIncentiveReportView(APIView):
         for doctor, bills_iterator in groupby(final_bills, key=lambda bill: bill.referred_by_doctor):
             
             doctor_bills = list(bills_iterator)
-            
-            # Use a generator expression with sum() for a concise calculation
             total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
             
-            serialized_bills = BillSerializer(doctor_bills, many=True).data
+            # 👇 --- MODIFICATIONS START HERE --- 👇
+
+            # Serialize the full doctor object
+            serialized_doctor = IncentiveDoctorSerializer(doctor).data
+            serialized_bills = IncentiveBillSerializer(doctor_bills, many=True).data
 
             if serialized_bills:
                 response_data.append({
-                    "doctor_id": doctor.id,
-                    "first_name": doctor.first_name,
-                    "last_name": doctor.last_name,
+                    # The full doctor model is now in a nested object
+                    "doctor": serialized_doctor, 
                     "total_incentive": total_incentive,
                     "bills": serialized_bills
                 })
+            
+            # 👆 --- MODIFICATIONS END HERE --- 👆
 
         return Response(response_data)

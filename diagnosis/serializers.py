@@ -110,8 +110,6 @@ class DoctorSerializer(serializers.ModelSerializer):
         return attrs
 
 class FranchiseNameSerializer(serializers.ModelSerializer):
-    # center_detail = MinimalCenterDetailSerializer(read_only=True)
-
     class Meta:
         model = FranchiseName
         fields = ['id', 'franchise_name', 'address', 'phone_number'
@@ -237,34 +235,45 @@ class BillSerializer(serializers.ModelSerializer):
         attrs.pop('test_done_by')
 
         return attrs
-
-class BillDetailForIncentiveReportSerializer(serializers.ModelSerializer):
+class IncentiveDiagnosisTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DiagnosisType
+        fields = [ 'name', 'category', 'price']
+class IncentiveFranchiseNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FranchiseName
+        fields= ['franchise_name']
+class IncentiveDoctorSerializer (serializers.ModelSerializer):
+    class Meta:
+        model = Doctor
+        fields=['id', 'first_name','last_name','hospital_name', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage']
+class IncentiveBillSerializer(serializers.ModelSerializer):
     """
     A read-only serializer for displaying nested bill details in reports.
     """
-    # diagnosis_type = serializers.CharField(source='diagnosis_type.name', read_only=True)
-    # franchise_name = serializers.CharField(source='franchise_name.franchise_name', read_only=True, allow_null=True)
+    diagnosis_type = IncentiveDiagnosisTypeSerializer( read_only=True)
+    franchise_name = IncentiveFranchiseNameSerializer(read_only=True, allow_null=True)
 
     class Meta:
         model = Bill
-        # fields = [
-        #     'bill_number',
-        #     'patient_name',
-        #     'patient_age',
-        #     'patient_sex',
-        #     'patient_phone_number', 
-        #     'diagnosis_type',
-        #     'franchise_name',
-        #     'total_amount',
-        #     'incentive_amount',
-        #     'disc_by_doctor',       
-        #     'disc_by_center',       
-        #     'date_of_bill',
-        #     'paid_amount',
-        #     'bill_status',
-        #     'id'
-        # ]
-        fields = "__all__"
+        fields = [
+            'id',
+            'bill_number',
+            'patient_name',
+            'patient_age',
+            'patient_sex',
+            'patient_phone_number', 
+            'diagnosis_type',
+            'franchise_name',
+            'date_of_bill',
+            'bill_status',
+            'total_amount',
+            'paid_amount',
+            'disc_by_doctor',       
+            'disc_by_center',       
+            'incentive_amount'
+        ]
+        
 
 
 

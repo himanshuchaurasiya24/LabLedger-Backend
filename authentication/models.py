@@ -99,3 +99,4 @@ class StaffAccount(AbstractUser):
         # Automatically sync is_staff with is_admin before saving
         self.is_staff = self.is_admin
         super().save(*args, **kwargs)
+        
