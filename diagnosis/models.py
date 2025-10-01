@@ -190,6 +190,8 @@ class Bill(models.Model):
         paid = int(self.paid_amount or 0)
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
+        print(f"{doctor_disc} doctor discount")
+        print(f"{center_disc} center discount")
         doctor_incentive = 0
 
         if self.referred_by_doctor and self.diagnosis_type:
@@ -204,15 +206,20 @@ class Bill(models.Model):
                 'Franchise Lab': doctor.franchise_lab_percentage,
             }
             percent = percentage_map.get(category, 0)
+            print(f"{percent} percent")
             full_incentive = (total * percent) // 100
+            print(f"{full_incentive} full incentive")
 
-            if total == paid + center_disc + doctor_disc or (doctor_disc == 0 and center_disc > 0):
+            if total == paid+center_disc or (doctor_disc == 0 and center_disc > 0):
+                print("if")
                 doctor_incentive = full_incentive
             elif doctor_disc > 0:
+                print("el if")
                 doctor_incentive = full_incentive - doctor_disc
             else:
+                print("else")
                 doctor_incentive = full_incentive
-        
+        print(doctor_incentive)
         self.incentive_amount = doctor_incentive
 
         super().save(*args, **kwargs)
