@@ -190,11 +190,19 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['bill__patient_name', 'bill__bill_number']
 
     def get_queryset(self):
-        return super().get_queryset().order_by('-id')
+        """
+        Overrides the default queryset to filter by the user's center and
+        optionally by a specific bill ID passed in the query parameters.
+        """
+        queryset = super().get_queryset()
+        bill_id = self.request.query_params.get('bill')
+        if bill_id is not None:
+            queryset = queryset.filter(bill__id=bill_id)        
+        return queryset.order_by('-id')
 
-    # ✅ REFACTORED: Handles assigning the center_detail automatically.
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        """Assigns the center_detail automatically during creation."""
+        serializer.save(center_detail=self.request.user.center_detail)
         
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -204,7 +212,8 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        """Assigns the center_detail automatically during an update."""
+        serializer.save(center_detail=self.request.user.center_detail)
 
 class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = SampleTestReport.objects.all()
@@ -594,9 +603,7 @@ class FlexibleIncentiveReportView(APIView):
             doctor_bills = list(bills_iterator)
             total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
             
-            # 👇 --- MODIFICATIONS START HERE --- 👇
 
-            # Serialize the full doctor object
             serialized_doctor = IncentiveDoctorSerializer(doctor).data
             serialized_bills = IncentiveBillSerializer(doctor_bills, many=True).data
 

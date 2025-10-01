@@ -116,7 +116,15 @@ class Bill(models.Model):
     patient_name = models.CharField(max_length=60)
     patient_age = models.PositiveIntegerField(validators=[validate_age])
     patient_sex = models.CharField(choices=SEX_CHOICES, max_length=10)
-    patient_phone_number = models.CharField(max_length=15, blank=True, default='')
+    patient_phone_number = models.PositiveBigIntegerField(
+        default=9999999999,  # Placeholder for old records
+        validators=[
+            RegexValidator(
+                regex=r'^\d{10,15}$', 
+                message="Phone number must be between 10 and 15 digits."
+            )
+        ]
+    )
     diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name="diagnosis_type")
     test_done_by = models.ForeignKey(StaffAccount, on_delete=models.CASCADE, related_name="test_done_by", null=True, blank=True)
     referred_by_doctor = models.ForeignKey(

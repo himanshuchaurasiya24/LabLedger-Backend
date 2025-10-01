@@ -159,14 +159,13 @@ class BillSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-
-    # --- Read-Only Fields (for output) ---
     diagnosis_type_output = MinimalDiagnosisTypeSerializer(source="diagnosis_type", read_only=True)
     referred_by_doctor_output = MinimalDoctorSerializer(source="referred_by_doctor", read_only=True)
     franchise_name_output = FranchiseNameSerializer(source='franchise_name', read_only=True)
     test_done_by = MinimalStaffAccountSerializer(read_only=True)
     center_detail = MinimalCenterDetailSerializer(read_only=True)
     match_reason = serializers.SerializerMethodField(read_only=True)
+    report_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Bill
@@ -176,12 +175,19 @@ class BillSerializer(serializers.ModelSerializer):
             'paid_amount', 'disc_by_center', 'disc_by_doctor', 'incentive_amount',
             'diagnosis_type', 'referred_by_doctor', 'franchise_name',
             'diagnosis_type_output', 'referred_by_doctor_output', 'franchise_name_output',
-            'test_done_by', 'center_detail', 'match_reason',
+            'test_done_by', 'center_detail', 'match_reason',"patient_phone_number","report_url"
         ]
         read_only_fields = (
             "bill_number", "test_done_by", "center_detail",
             "incentive_amount", "total_amount",
         )
+    def get_report_url(self, bill):
+        report = bill.report.first()
+        if report and report.report_file:
+            request = self.context.get("request")
+            return request.build_absolute_uri(report.report_file.url)
+        return None
+
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -197,35 +203,21 @@ class BillSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = self.context['request'].user
-
-        # ✅ START: Corrected logic for handling franchise_name on updates
-        # Determine what the final diagnosis_type will be.
-        # If a new one is being sent, use it. Otherwise, use the existing one on the instance.
         if 'diagnosis_type' in attrs:
             final_diagnosis_type = attrs.get('diagnosis_type')
         elif self.instance:
             final_diagnosis_type = self.instance.diagnosis_type
         else:
             final_diagnosis_type = None
-
-        # Based on the final diagnosis_type, automatically clean the franchise_name attribute.
         if final_diagnosis_type and final_diagnosis_type.category != 'Franchise Lab':
-            # If the category is not 'Franchise Lab', force franchise_name to be null.
             attrs['franchise_name'] = None
-        # ✅ END: Corrected logic
-
-        # Temporarily add user and center details to run model validation
         attrs['center_detail'] = user.center_detail
         attrs['test_done_by'] = user
-
-        # Create a temporary model instance with the final, validated attributes
-        # This handles both create (self.instance is None) and update cases
         instance = self.instance or Bill()
         for attr, value in attrs.items():
             setattr(instance, attr, value)
 
         try:
-            # Run the model's clean() method on the temporary instance
             instance.full_clean()
         except DjangoValidationError as e:
             raise DRFValidationError(e.message_dict)
@@ -279,14 +271,11 @@ class IncentiveBillSerializer(serializers.ModelSerializer):
 
 class PatientReportSerializer(serializers.ModelSerializer):
     bill_output = MinimalBillSerializer(read_only=True, source='bill')
-    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
-    
-    # ✅ REFACTORED: queryset is now filtered in __init__ for proactive validation.
     bill = serializers.PrimaryKeyRelatedField(queryset=Bill.objects.all(), write_only=True)
 
     class Meta:
         model = PatientReport
-        fields = ['id', 'report_file', 'bill', 'bill_output', 'center_detail_output']
+        fields = ['id', 'report_file', "bill", "bill_output"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
