@@ -1,4 +1,3 @@
-import os
 from django.utils import timezone
 from django.db import models
 from django.forms import ValidationError
@@ -10,12 +9,11 @@ import os
 
 
 def sample_report_file_upload_path(instance, filename):
-    diagnosis_type_name = instance.diagnosis_type
-    extension = os.path.splitext(filename)[1]  # Extract file extension
-    original_filename = os.path.splitext(filename)[0]  # Get original name without extension
-    new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
-    return os.path.join("sample_reports", new_filename)
-
+    category = slugify(instance.diagnosis_type.category)
+    specific_name = slugify(instance.diagnosis_name)
+    extension = os.path.splitext(filename)[1]
+    new_filename = f"{specific_name}{extension}"
+    return os.path.join("sample_reports", category, new_filename)
 def report_file_upload_path(instance, filename):
     # Get the file extension
     ext = filename.split('.')[-1]
@@ -290,11 +288,29 @@ class PatientReport(models.Model):
 
         super().delete(*args, **kwargs)
 class SampleTestReport(models.Model):
+    diagnosis_type = models.ForeignKey(
+        DiagnosisType, 
+        on_delete=models.CASCADE, 
+        related_name="sample_reports"
+    )
     diagnosis_name = models.CharField(max_length=255)
-    diagnosis_type = models.CharField(choices=CATEGORY_CHOICES, max_length=50)
-    sample_report_file = models.FileField(upload_to=sample_report_file_upload_path, blank=False, null=False)
-    center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_sample_test_report")
+    sample_report_file = models.FileField(
+        upload_to=sample_report_file_upload_path, 
+        blank=False, 
+        null=False
+    )
+    center_detail = models.ForeignKey(
+        CenterDetail, 
+        on_delete=models.CASCADE, 
+        related_name="center_detail_sample_test_report"
+    )
 
+    class Meta:
+        unique_together = ('diagnosis_type', 'diagnosis_name')
+
+    def __str__(self):
+        return f"{self.diagnosis_name} ({self.diagnosis_type.category})"
+    
     def save(self, *args, **kwargs):
         if self.sample_report_file:
             filename = self.sample_report_file.name
@@ -302,15 +318,11 @@ class SampleTestReport(models.Model):
             extension = os.path.splitext(filename)[1]  # Extract file extension
             original_filename = os.path.splitext(filename)[0]  # Get original name without extension
             new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
-            
-            # Ensure filename uniqueness by appending a number if a conflict exists
             counter = 1
 
             while os.path.exists(os.path.join("media/sample_reports", new_filename)):
                 new_filename = f"{diagnosis_type_name}_{original_filename}_{counter}{extension}"
                 counter += 1
-
-            # Retrieve existing file if updating
             old_file = None
             if self.pk:
                 try:
@@ -318,13 +330,9 @@ class SampleTestReport(models.Model):
                     old_file = old_instance.sample_report_file
                 except SampleTestReport.DoesNotExist:
                     old_file = None
-
-            # Assign unique filename before saving
             self.sample_report_file.name = os.path.join("sample_reports", new_filename)
 
         super().save(*args, **kwargs)
-
-        # Delete the old file if changed
         if old_file and old_file != self.sample_report_file and os.path.isfile(os.path.join("media", old_file.name)):
             try:
                 os.remove(os.path.join("media", old_file.name))
@@ -336,7 +344,7 @@ class SampleTestReport(models.Model):
             raise ValidationError("A sample report file is required.")
 
         file_size_limit = 8 * 1024 * 1024  # 8 MB limit
-        allowed_formats = ('.doc', '.docx', '.pdf', '.txt')
+        allowed_formats = ('.doc', '.docx', '.rtf', '.txt')
 
         if self.sample_report_file.size > file_size_limit:
             raise ValidationError(f"File exceeds the {file_size_limit // (1024*1024)}MB limit.")

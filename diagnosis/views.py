@@ -223,11 +223,19 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = SampleTestReportFilter
     search_fields = ["diagnosis_type", "diagnosis_name"]
-    
+    def get_permissions(self):
+        """
+        Instantiates and returns the list of permissions that this view requires.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, permissions.IsAdminUser]
+        else:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+        return [perm() for perm in permission_classes]
+
     def get_queryset(self):
         return super().get_queryset().order_by('-id')
     
-    # ✅ REFACTORED: Handles assigning the center_detail automatically.
     def perform_create(self, serializer):
         serializer.save(center_detail=self.request_detail)
         
@@ -240,8 +248,6 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(center_detail=self.request_detail)
-
-# --- Statistics & Reporting Views (No changes needed) ---
 
 class ReferralStatsViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
