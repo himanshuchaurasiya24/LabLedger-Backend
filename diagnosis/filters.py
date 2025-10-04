@@ -127,22 +127,19 @@ class BillFilter(django_filters.FilterSet):
             return queryset.filter(bill_status__in=['Unpaid', 'Partially Paid'])
         return queryset
 
-# PatientReport Filter
 class PatientReportFilter(django_filters.FilterSet):
     patient_name = django_filters.CharFilter(field_name='patient_name', lookup_expr='icontains')
-    report_type = django_filters.CharFilter(field_name='report_type', lookup_expr='icontains')
-    start_date = django_filters.DateFilter(field_name='date_of_report', lookup_expr='gte')
-    end_date = django_filters.DateFilter(field_name='date_of_report', lookup_expr='lte')
+    start_date = django_filters.DateFilter(field_name='bill__date_of_bill', lookup_expr='gte')
+    end_date = django_filters.DateFilter(field_name='bill__date_of_bill', lookup_expr='lte')
 
     class Meta:
         model = PatientReport
-        fields = ['patient_name', 'report_type', 'start_date', 'end_date']
+        fields = ['patient_name', 'start_date', 'end_date', 'id', "bill"]
 
 class SampleTestReportFilter(django_filters.FilterSet):
-    diagnosis_type = django_filters.CharFilter(field_name="diagnosis_type", lookup_expr="iexact")
+    diagnosis_type = django_filters.CharFilter(field_name="diagnosis_type__category", lookup_expr="iexact")
     diagnosis_name = django_filters.CharFilter(field_name="diagnosis_name", lookup_expr="icontains")
     center_detail = django_filters.ModelChoiceFilter(queryset=CenterDetail.objects.all())
-
     class Meta:
         model = SampleTestReport
-        fields = ["diagnosis_type", "diagnosis_name", "center_detail"]
+        fields = ["diagnosis_type", "diagnosis_name", "center_detail", "id"]

@@ -219,7 +219,7 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = SampleTestReport.objects.all()
     serializer_class = SampleTestReportSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    # permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = SampleTestReportFilter
     search_fields = ["diagnosis_type", "diagnosis_name"]

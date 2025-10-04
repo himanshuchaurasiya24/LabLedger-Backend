@@ -249,10 +249,8 @@ class PatientReport(models.Model):
             extension = os.path.splitext(self.report_file.name)[1]
             new_filename = f"{bill_number}{extension}"
 
-            # Set new filename
             self.report_file.name = new_filename
 
-            # Delete any existing report for the same bill before saving
             existing_reports = PatientReport.objects.filter(bill=self.bill).exclude(pk=self.pk)
             for report in existing_reports:
                 if report.report_file and os.path.isfile(report.report_file.path):
@@ -287,6 +285,7 @@ class PatientReport(models.Model):
                 print(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
+        
 class SampleTestReport(models.Model):
     diagnosis_type = models.ForeignKey(
         DiagnosisType, 
