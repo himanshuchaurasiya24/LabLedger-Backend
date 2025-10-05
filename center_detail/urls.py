@@ -6,5 +6,4 @@ router.register(r'center-detail', CenterDetailViewSet)
 router.register(r'subscription', SubscriptionViewSet)
 urlpatterns = [
     path('', include(router.urls)),
-    path('', include(router.urls)),
 ]
