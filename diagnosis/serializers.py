@@ -16,6 +16,11 @@ class MinimalBillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bill
         fields = ['id', 'bill_number', 'patient_name', 'patient_age', 'patient_sex']
+class MinimalBillSerializerForPendingReports(serializers.ModelSerializer):
+    diagnosis_type= MinimalDiagnosisTypeSerializer(serializers.ModelSerializer)
+    class Meta:
+        model = Bill
+        fields = ['id',  'patient_name', 'patient_age', 'patient_sex', 'diagnosis_type', 'date_of_bill', 'referred_by_doctor']
 
 class MinimalDoctorSerializer(serializers.ModelSerializer):
     class Meta:

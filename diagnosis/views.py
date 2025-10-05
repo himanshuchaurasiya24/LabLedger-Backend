@@ -17,9 +17,6 @@ from .models import *
 from .serializers import *
 from .filters import *
 from .pagination import StandardResultsSetPagination
-
-# --- Mixins and Base Permissions ---
-
 class CenterDetailFilterMixin:
     """
     A mixin that filters querysets based on the request.user.center_detail.
@@ -623,3 +620,24 @@ class FlexibleIncentiveReportView(APIView):
             # 👆 --- MODIFICATIONS END HERE --- 👆
 
         return Response(response_data)
+
+class PendingReportViewSet(CenterDetailFilterMixin, viewsets.ReadOnlyModelViewSet):
+    serializer_class = MinimalBillSerializerForPendingReports
+    queryset = Bill.objects.all()
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = BillFilter
+    search_fields = [
+        "bill_number",
+        "patient_name",
+        "diagnosis_type__name",
+        "diagnosis_type__category",
+        "referred_by_doctor__first_name",
+        "referred_by_doctor__last_name",
+    ]
+
+    def get_queryset(self):
+        base_queryset = super().get_queryset()
+
+        return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")

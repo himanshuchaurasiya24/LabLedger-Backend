@@ -9,7 +9,6 @@ from authentication.models import StaffAccount
 import os
 
 def sample_report_file_upload_path(instance, filename):
-    # category_slug = slugify(instance.category or 'uncategorized')
     extension = os.path.splitext(filename)[1]
     unique_filename = f"{uuid.uuid4()}{extension}"
     return os.path.join("sample_reports", unique_filename)

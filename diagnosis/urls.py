@@ -12,8 +12,9 @@ router.register(r'sample-test-report', SampleTestReportViewSet, basename='sample
 router.register(r'franchise-name', FranchiseNameViewSet, basename='franchise-name')
 router.register(r'referral-stat', ReferralStatsViewSet, basename='referral-stats')
 router.register(r'bill-chart-stat', BillChartStatsViewSet, basename='bill-chart-stats')
+router.register(r'pending-reports', PendingReportViewSet, basename='pending-report')
 
-# 2. Define your URL patterns
+
 urlpatterns = [
     path('', include(router.urls)), 
     path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
