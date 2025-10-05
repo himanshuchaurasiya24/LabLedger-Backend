@@ -1,3 +1,5 @@
+# center_detail/models.py
+
 from django.db import models
 from datetime import timedelta, date
 
@@ -18,8 +20,6 @@ class CenterDetail(models.Model):
             Subscription.objects.create(
                 center=self,
                 plan_type="FREE",
-                purchase_date=date.today(),
-                expiry_date=date.today() + timedelta(days=30),
             )
 
 
@@ -38,10 +38,12 @@ class Subscription(models.Model):
     plan_type = models.CharField(max_length=20, choices=PLAN_CHOICES)
     purchase_date = models.DateField()
     expiry_date = models.DateField()
-    is_active = models.BooleanField(default=True)  # ✅ API-controlled
+    is_active = models.BooleanField(default=True)
 
     @property
     def days_left(self):
+        if not self.expiry_date:
+            return 0
         remaining = (self.expiry_date - date.today()).days
         return max(remaining, 0)
 
@@ -52,12 +54,10 @@ class Subscription(models.Model):
         if not self.expiry_date:
             if self.plan_type == "PREMIUM":
                 self.expiry_date = self.purchase_date + timedelta(days=365)
-            elif self.plan_type == "FREE":
-                self.expiry_date = self.purchase_date + timedelta(days=30)
+            # This covers both "FREE" and "BASIC"
             else:
                 self.expiry_date = self.purchase_date + timedelta(days=30)
 
-        # DO NOT auto-update existing subscription here
         super().save(*args, **kwargs)
 
     def __str__(self):

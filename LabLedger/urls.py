@@ -15,7 +15,7 @@ from django.conf.urls.static import static
 from authentication.views import *
 
 urlpatterns = [
-    path('admin/', custom_admin_site.urls),
+    path('predator/', custom_admin_site.urls),
     path('', health_check),
     path('api/app-info/', AppInfoView.as_view(), name='app-info'),
     path('verify-auth/', ValidateTokenView.as_view(), name='validate-token'),
