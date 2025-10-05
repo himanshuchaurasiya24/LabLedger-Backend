@@ -3,23 +3,19 @@ from django.db import models
 from django.forms import ValidationError
 from django.core.validators import RegexValidator
 from django.utils.text import slugify
+import uuid
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
 import os
 
-
 def sample_report_file_upload_path(instance, filename):
-    category = slugify(instance.diagnosis_type.category)
-    specific_name = slugify(instance.diagnosis_name)
+    # category_slug = slugify(instance.category or 'uncategorized')
     extension = os.path.splitext(filename)[1]
-    new_filename = f"{specific_name}{extension}"
-    return os.path.join("sample_reports", category, new_filename)
+    unique_filename = f"{uuid.uuid4()}{extension}"
+    return os.path.join("sample_reports", unique_filename)
 def report_file_upload_path(instance, filename):
-    # Get the file extension
     ext = filename.split('.')[-1]
-    # Create new filename using bill number
     filename = f"{instance.bill.bill_number}.{ext}"
-    # Return the full path
     return os.path.join('reports/', filename)
 
 def validate_age(value):
@@ -285,60 +281,52 @@ class PatientReport(models.Model):
                 print(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
-        
+
 class SampleTestReport(models.Model):
-    diagnosis_type = models.ForeignKey(
-        DiagnosisType, 
-        on_delete=models.CASCADE, 
-        related_name="sample_reports"
+    category = models.CharField(
+        max_length=50,
+        choices=CATEGORY_CHOICES,
+        null=True
     )
     diagnosis_name = models.CharField(max_length=255)
     sample_report_file = models.FileField(
-        upload_to=sample_report_file_upload_path, 
-        blank=False, 
+        upload_to=sample_report_file_upload_path,
+        blank=False,
         null=False
     )
     center_detail = models.ForeignKey(
-        CenterDetail, 
-        on_delete=models.CASCADE, 
+        CenterDetail,
+        on_delete=models.CASCADE,
         related_name="center_detail_sample_test_report"
     )
 
     class Meta:
-        unique_together = ('diagnosis_type', 'diagnosis_name')
+        unique_together = ('category', 'diagnosis_name')
 
     def __str__(self):
-        return f"{self.diagnosis_name} ({self.diagnosis_type.category})"
-    
-    def save(self, *args, **kwargs):
-        if self.sample_report_file:
-            filename = self.sample_report_file.name
-            diagnosis_type_name = self.diagnosis_type
-            extension = os.path.splitext(filename)[1]  # Extract file extension
-            original_filename = os.path.splitext(filename)[0]  # Get original name without extension
-            new_filename = f"{diagnosis_type_name}_{original_filename}{extension}"
-            counter = 1
+        return f"{self.diagnosis_name} - {self.category} - {self.center_detail.center_name}"
 
-            while os.path.exists(os.path.join("media/sample_reports", new_filename)):
-                new_filename = f"{diagnosis_type_name}_{original_filename}_{counter}{extension}"
-                counter += 1
-            old_file = None
-            if self.pk:
-                try:
-                    old_instance = SampleTestReport.objects.get(pk=self.pk)
-                    old_file = old_instance.sample_report_file
-                except SampleTestReport.DoesNotExist:
-                    old_file = None
-            self.sample_report_file.name = os.path.join("sample_reports", new_filename)
+    def save(self, *args, **kwargs):
+        """
+        ✅ Simplified save method.
+        The complex file renaming logic is removed and handled by `upload_to`.
+        This method now only handles deleting an old file if a new one is
+        uploaded during an update.
+        """
+        if self.pk:  # Check if this is an update to an existing object
+            try:
+                old_instance = SampleTestReport.objects.get(pk=self.pk)
+                # If the file has been changed, delete the old one from the filesystem
+                if old_instance.sample_report_file != self.sample_report_file:
+                    if old_instance.sample_report_file and os.path.isfile(old_instance.sample_report_file.path):
+                        os.remove(old_instance.sample_report_file.path)
+            except SampleTestReport.DoesNotExist:
+                pass  # This is a new instance, so do nothing
 
         super().save(*args, **kwargs)
-        if old_file and old_file != self.sample_report_file and os.path.isfile(os.path.join("media", old_file.name)):
-            try:
-                os.remove(os.path.join("media", old_file.name))
-            except Exception as e:
-                print(f"Failed to delete old file: {e}")
 
     def clean(self):
+        # Your clean method logic is good and remains unchanged.
         if not self.sample_report_file:
             raise ValidationError("A sample report file is required.")
 
@@ -354,12 +342,12 @@ class SampleTestReport(models.Model):
         super().clean()
 
     def delete(self, *args, **kwargs):
-        if self.sample_report_file and os.path.isfile(os.path.join("media", self.sample_report_file.name)):
+        # Your delete method is correct and remains unchanged.
+        # It ensures the physical file is deleted when the database record is.
+        if self.sample_report_file and os.path.isfile(self.sample_report_file.path):
             try:
-                os.remove(os.path.join("media", self.sample_report_file.name))
+                os.remove(self.sample_report_file.path)
             except Exception as e:
                 print(f"Failed to delete report file: {e}")
-
+        
         super().delete(*args, **kwargs)
-    def __str__(self):
-        return f"{self.diagnosis_name} - {self.diagnosis_type} - {self.center_detail.center_name}"

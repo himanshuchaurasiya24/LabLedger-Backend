@@ -137,9 +137,9 @@ class PatientReportFilter(django_filters.FilterSet):
         fields = ['patient_name', 'start_date', 'end_date', 'id', "bill"]
 
 class SampleTestReportFilter(django_filters.FilterSet):
-    diagnosis_type = django_filters.CharFilter(field_name="diagnosis_type__category", lookup_expr="iexact")
     diagnosis_name = django_filters.CharFilter(field_name="diagnosis_name", lookup_expr="icontains")
     center_detail = django_filters.ModelChoiceFilter(queryset=CenterDetail.objects.all())
+    
     class Meta:
         model = SampleTestReport
-        fields = ["diagnosis_type", "diagnosis_name", "center_detail", "id"]
+        fields = ["category", "diagnosis_name", "center_detail", "id"]

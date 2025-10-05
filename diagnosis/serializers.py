@@ -280,12 +280,10 @@ class PatientReportSerializer(serializers.ModelSerializer):
             self.fields['bill'].queryset = Bill.objects.filter(center_detail=user_center)
 
 class SampleTestReportSerializer(serializers.ModelSerializer):
-    center_detail_output = MinimalCenterDetailSerializer(read_only=True, source='center_detail')
-    diagnosis_type_output = MinimalDiagnosisTypeSerializer(read_only=True, source='diagnosis_type')
-    diagnosis_type = serializers.PrimaryKeyRelatedField(queryset=DiagnosisType.objects.all(), write_only=True)
     class Meta:
         model = SampleTestReport
-        fields = ['id', 'diagnosis_name', 'diagnosis_type','diagnosis_type_output', 'sample_report_file', 'center_detail_output']
+        fields = ['id', 'category', 'diagnosis_name', 'sample_report_file']
+
     def validate_sample_report_file(self, value):
         """
         Custom validation for the uploaded file.
@@ -295,10 +293,10 @@ class SampleTestReportSerializer(serializers.ModelSerializer):
         allowed_formats = ('.doc', '.docx', '.rtf')
         if value.size > file_size_limit:
             raise serializers.ValidationError(f"File size cannot exceed 8 MB.")
+        
         file_extension = os.path.splitext(value.name)[1].lower()
         if file_extension not in allowed_formats:
             raise serializers.ValidationError(
                 f"Invalid file format. Only Word documents ({', '.join(allowed_formats)}) are allowed."
             )
-
         return value

@@ -219,10 +219,10 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = SampleTestReport.objects.all()
     serializer_class = SampleTestReportSerializer
     authentication_classes = [JWTAuthentication]
-    # permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = SampleTestReportFilter
-    search_fields = ["diagnosis_type", "diagnosis_name"]
+    search_fields = ["category", "diagnosis_name"]
+
     def get_permissions(self):
         """
         Instantiates and returns the list of permissions that this view requires.
@@ -248,7 +248,6 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save(center_detail=self.request_detail)
-
 class ReferralStatsViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
