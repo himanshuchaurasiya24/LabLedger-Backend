@@ -1,4 +1,8 @@
 from django.contrib import admin
+# Add these imports for the date widget
+from django.db import models
+from django.contrib.admin.widgets import AdminDateWidget
+
 from authentication.admin import custom_admin_site
 from authentication.admin_mixins import CenterFilteredAdminMixin
 from .models import CenterDetail, Subscription
@@ -8,7 +12,15 @@ class SubscriptionInline(admin.TabularInline):
     model = Subscription
     extra = 0
     fields = ("plan_type", "purchase_date", "expiry_date", "days_left", "is_active")
-    readonly_fields = ("purchase_date", "expiry_date", "days_left", "is_active")
+    
+    # CORRECTED: Removed date fields so they can be edited.
+    # 'days_left' and 'is_active' can remain read-only as they are likely calculated.
+    readonly_fields = ("days_left", "is_active")
+    
+    # ADDED: This applies the calendar widget to the date fields.
+    formfield_overrides = {
+        models.DateField: {'widget': AdminDateWidget},
+    }
 
 class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
     list_display = ("center_name", "address", "owner_name", "owner_phone", "get_plan", "get_days_left")
@@ -26,24 +38,19 @@ class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
 
     # --- PERMISSION OVERRIDES ---
     def has_view_permission(self, request, obj=None):
-        # Allows a user to see the list page and their own center's detail page.
         return True
 
     def has_change_permission(self, request, obj=None):
-        # Superusers can change anything.
         if request.user.is_superuser:
             return True
-        # A non-superuser can only change their own center.
         if obj is not None:
             return obj == request.user.center_detail
         return False
 
     def has_add_permission(self, request):
-        # Only superusers can add new centers.
         return request.user.is_superuser
 
     def has_delete_permission(self, request, obj=None):
-        # Only superusers can delete centers.
         return request.user.is_superuser
 
     # --- Custom display methods ---
