@@ -549,7 +549,6 @@ class FlexibleIncentiveReportView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
 
     def get(self, request, format=None):
-        # 1. Determine the date range for the report
         start_date_str = request.query_params.get('start_date')
         end_date_str = request.query_params.get('end_date')
         
@@ -593,12 +592,10 @@ class FlexibleIncentiveReportView(APIView):
         else:
             base_qs = base_qs.filter(bill_status='Fully Paid')
 
-        # 5. Fetch all data in one optimized query, ordered for grouping
         final_bills = base_qs.select_related(
             'referred_by_doctor', 'diagnosis_type', 'franchise_name'
         ).order_by('referred_by_doctor__first_name', 'referred_by_doctor__last_name')
 
-        # 6. Group bills by doctor and format the final response
         response_data = []
         for doctor, bills_iterator in groupby(final_bills, key=lambda bill: bill.referred_by_doctor):
             
@@ -638,6 +635,6 @@ class PendingReportViewSet(CenterDetailFilterMixin, viewsets.ReadOnlyModelViewSe
     ]
 
     def get_queryset(self):
-        base_queryset = super().get_queryset()
+        base_queryset = super().get_queryset(ord)
 
-        return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")
+        return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")[:40]
