@@ -262,7 +262,7 @@ class PatientReport(models.Model):
         if not self.report_file:
             raise ValidationError("A report file is required.")
 
-        file_size_limit = 8 * 1024 * 1024  # 8 MB size limit
+        file_size_limit = 1 * 1024 * 1024  # 1 MB size limit
         allowed_formats = ('.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx')
 
         if self.report_file.size > file_size_limit:
@@ -329,7 +329,7 @@ class SampleTestReport(models.Model):
         if not self.sample_report_file:
             raise ValidationError("A sample report file is required.")
 
-        file_size_limit = 8 * 1024 * 1024  # 8 MB limit
+        file_size_limit = 1 * 1024 * 1024  # 1 MB limit
         allowed_formats = ('.doc', '.docx', '.rtf', '.txt')
 
         if self.sample_report_file.size > file_size_limit:
