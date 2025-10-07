@@ -541,3 +541,4 @@
 127.0.0.1 - - [07/Oct/2025:13:14:47 +0530] "GET /predator/center_detail/centerdetail/2/change/ HTTP/1.0" 200 20772 "http://80.225.228.15/predator/center_detail/centerdetail/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 127.0.0.1 - - [07/Oct/2025:13:14:48 +0530] "GET /predator/jsi18n/ HTTP/1.0" 200 3342 "http://80.225.228.15/predator/center_detail/centerdetail/2/change/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 127.0.0.1 - - [07/Oct/2025:13:24:35 +0530] "GET / HTTP/1.0" 200 21 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.85 Safari/537.36 Edg/90.0.818.46"
+127.0.0.1 - - [07/Oct/2025:13:34:29 +0530] "GET /predator/ HTTP/1.0" 200 14553 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
