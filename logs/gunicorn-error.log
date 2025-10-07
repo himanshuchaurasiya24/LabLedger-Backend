@@ -1,0 +1,28 @@
+[2025-10-07 07:36:53 +0530] [12832] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 07:36:53 +0530] [12832] [INFO] Listening at: http://127.0.0.1:8000 (12832)
+[2025-10-07 07:36:53 +0530] [12832] [INFO] Using worker: sync
+[2025-10-07 07:36:53 +0530] [12833] [INFO] Booting worker with pid: 12833
+[2025-10-07 07:36:53 +0530] [12834] [INFO] Booting worker with pid: 12834
+[2025-10-07 07:36:53 +0530] [12835] [INFO] Booting worker with pid: 12835
+[2025-10-07 07:37:10 +0530] [12832] [INFO] Handling signal: int
+[2025-10-07 07:37:10 +0530] [12835] [INFO] Worker exiting (pid: 12835)
+[2025-10-07 07:37:10 +0530] [12834] [INFO] Worker exiting (pid: 12834)
+[2025-10-07 07:37:10 +0530] [12833] [INFO] Worker exiting (pid: 12833)
+[2025-10-07 07:37:10 +0530] [12832] [INFO] Shutting down: Master
+[2025-10-07 07:37:38 +0530] [12841] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 07:37:38 +0530] [12841] [INFO] Listening at: http://127.0.0.1:8000 (12841)
+[2025-10-07 07:37:38 +0530] [12841] [INFO] Using worker: sync
+[2025-10-07 07:37:38 +0530] [12842] [INFO] Booting worker with pid: 12842
+[2025-10-07 07:37:38 +0530] [12843] [INFO] Booting worker with pid: 12843
+[2025-10-07 07:37:38 +0530] [12844] [INFO] Booting worker with pid: 12844
+[2025-10-07 07:42:09 +0530] [12841] [INFO] Handling signal: int
+[2025-10-07 07:42:09 +0530] [12843] [INFO] Worker exiting (pid: 12843)
+[2025-10-07 07:42:09 +0530] [12844] [INFO] Worker exiting (pid: 12844)
+[2025-10-07 07:42:09 +0530] [12842] [INFO] Worker exiting (pid: 12842)
+[2025-10-07 07:42:10 +0530] [12841] [INFO] Shutting down: Master
+[2025-10-07 07:45:29 +0530] [13445] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 07:45:29 +0530] [13445] [INFO] Listening at: http://127.0.0.1:8000 (13445)
+[2025-10-07 07:45:29 +0530] [13445] [INFO] Using worker: sync
+[2025-10-07 07:45:29 +0530] [13446] [INFO] Booting worker with pid: 13446
+[2025-10-07 07:45:29 +0530] [13447] [INFO] Booting worker with pid: 13447
+[2025-10-07 07:45:29 +0530] [13448] [INFO] Booting worker with pid: 13448
