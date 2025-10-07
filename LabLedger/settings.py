@@ -15,7 +15,10 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-(!^(f!1)-eu5ho
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['80.225.228.15', 'www.yourdomain.com', 'yourdomain.com', 'localhost']
+ALLOWED_HOSTS = ['80.225.228.15', 
+'www.yourdomain.com', 
+'127.0.0.1',
+ 'localhost']
 
 # CORS Configuration (if you have a frontend)
 CORS_ALLOWED_ORIGINS = [
