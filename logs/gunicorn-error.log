@@ -354,3 +354,12 @@
 [2025-10-07 12:23:01 +0530] [1638] [INFO] Booting worker with pid: 1638
 [2025-10-07 12:23:02 +0530] [1639] [INFO] Booting worker with pid: 1639
 [2025-10-07 12:23:02 +0530] [1640] [INFO] Booting worker with pid: 1640
+[2025-10-07 13:06:41 +0530] [1640] [INFO] Worker exiting (pid: 1640)
+[2025-10-07 13:06:41 +0530] [1638] [INFO] Worker exiting (pid: 1638)
+[2025-10-07 13:06:41 +0530] [1639] [INFO] Worker exiting (pid: 1639)
+[2025-10-07 13:13:49 +0530] [2632] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 13:13:49 +0530] [2632] [INFO] Listening at: http://0.0.0.0:8000 (2632)
+[2025-10-07 13:13:49 +0530] [2632] [INFO] Using worker: sync
+[2025-10-07 13:13:49 +0530] [2637] [INFO] Booting worker with pid: 2637
+[2025-10-07 13:13:49 +0530] [2638] [INFO] Booting worker with pid: 2638
+[2025-10-07 13:13:49 +0530] [2640] [INFO] Booting worker with pid: 2640
