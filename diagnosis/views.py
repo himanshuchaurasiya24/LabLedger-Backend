@@ -635,6 +635,6 @@ class PendingReportViewSet(CenterDetailFilterMixin, viewsets.ReadOnlyModelViewSe
     ]
 
     def get_queryset(self):
-        base_queryset = super().get_queryset(ord)
+        base_queryset = super().get_queryset()
 
         return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")[:40]
