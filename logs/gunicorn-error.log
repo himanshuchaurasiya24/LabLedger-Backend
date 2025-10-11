@@ -363,3 +363,53 @@
 [2025-10-07 13:13:49 +0530] [2637] [INFO] Booting worker with pid: 2637
 [2025-10-07 13:13:49 +0530] [2638] [INFO] Booting worker with pid: 2638
 [2025-10-07 13:13:49 +0530] [2640] [INFO] Booting worker with pid: 2640
+[2025-10-07 14:11:01 +0530] [3479] [INFO] Worker exiting (pid: 3479)
+[2025-10-07 14:11:01 +0530] [3480] [INFO] Worker exiting (pid: 3480)
+[2025-10-07 14:11:01 +0530] [3481] [INFO] Worker exiting (pid: 3481)
+[2025-10-07 14:11:54 +0530] [3727] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 14:11:54 +0530] [3727] [INFO] Listening at: http://0.0.0.0:8000 (3727)
+[2025-10-07 14:11:54 +0530] [3727] [INFO] Using worker: sync
+[2025-10-07 14:11:54 +0530] [3728] [INFO] Booting worker with pid: 3728
+[2025-10-07 14:11:54 +0530] [3729] [INFO] Booting worker with pid: 3729
+[2025-10-07 14:11:54 +0530] [3730] [INFO] Booting worker with pid: 3730
+[2025-10-07 20:41:24 +0530] [3730] [WARNING] Invalid request from ip=167.94.146.52: Invalid HTTP Version: (2, 0)
+[2025-10-07 20:42:24 +0530] [3730] [WARNING] Invalid request from ip=167.94.146.52: Invalid HTTP Version: (2, 0)
+[2025-10-07 21:56:37 +0530] [3730] [WARNING] Invalid request from ip=199.45.155.64: Invalid HTTP Version: (2, 0)
+[2025-10-07 21:56:46 +0530] [3730] [WARNING] Invalid request from ip=199.45.155.64: Invalid HTTP Version: (2, 0)
+[2025-10-07 22:06:21 +0530] [3730] [INFO] Worker exiting (pid: 3730)
+[2025-10-07 22:06:21 +0530] [3728] [INFO] Worker exiting (pid: 3728)
+[2025-10-07 22:06:21 +0530] [3729] [INFO] Worker exiting (pid: 3729)
+[2025-10-07 22:06:21 +0530] [3727] [INFO] Handling signal: term
+[2025-10-07 22:06:21 +0530] [3727] [ERROR] Worker (pid:3728) was sent SIGTERM!
+[2025-10-07 22:06:21 +0530] [3727] [ERROR] Worker (pid:3729) was sent SIGTERM!
+[2025-10-07 22:06:21 +0530] [3727] [ERROR] Worker (pid:3730) was sent SIGTERM!
+[2025-10-07 22:06:21 +0530] [3727] [INFO] Shutting down: Master
+[2025-10-07 22:06:21 +0530] [7735] [INFO] Starting gunicorn 23.0.0
+[2025-10-07 22:06:21 +0530] [7735] [INFO] Listening at: http://0.0.0.0:8000 (7735)
+[2025-10-07 22:06:21 +0530] [7735] [INFO] Using worker: sync
+[2025-10-07 22:06:21 +0530] [7736] [INFO] Booting worker with pid: 7736
+[2025-10-07 22:06:21 +0530] [7737] [INFO] Booting worker with pid: 7737
+[2025-10-07 22:06:21 +0530] [7738] [INFO] Booting worker with pid: 7738
+[2025-10-08 01:12:38 +0530] [7738] [WARNING] Invalid request from ip=173.239.221.22: Invalid HTTP request line: 'SSH-2.0-WanScannerBot'
+[2025-10-08 01:12:38 +0530] [7738] [WARNING] Invalid request from ip=173.239.221.22: Invalid HTTP request line: '\x03\x00\x00&!à\x00\x00þÊ\x00Cookie: mstshash='
+[2025-10-08 01:12:47 +0530] [7738] [WARNING] Invalid request from ip=173.239.221.22: Invalid HTTP Version: 'RTSP/1.0'
+[2025-10-08 01:12:51 +0530] [7736] [WARNING] Invalid request from ip=173.239.221.22: Invalid HTTP request line: '\x01\x00\x00\x00'
+[2025-10-08 07:51:30 +0530] [7736] [WARNING] Invalid request from ip=3.131.215.38: Invalid HTTP request line: 'SSH-2.0-Go'
+[2025-10-08 17:16:42 +0530] [7736] [WARNING] Invalid request from ip=139.162.3.144: Invalid HTTP request line: ''
+[2025-10-08 17:16:48 +0530] [7737] [WARNING] Invalid request from ip=139.162.3.144: Invalid HTTP method: '\x05\x04\x00\x01\x02\x80\x05\x01\x00\x03\ngoogle.com\x00PGET'
+[2025-10-08 17:16:53 +0530] [7738] [WARNING] Invalid request from ip=139.162.3.144: Invalid HTTP Version: 'RTSP/1.0'
+[2025-10-08 17:17:03 +0530] [7738] [WARNING] Invalid request from ip=139.162.3.144: Invalid HTTP request line: 'HELP'
+[2025-10-08 17:17:24 +0530] [7737] [WARNING] Invalid request from ip=139.162.3.144: Invalid HTTP Version: 'SIP/2.0'
+[2025-10-08 22:42:35 +0530] [7737] [WARNING] Invalid request from ip=167.94.138.112: Invalid HTTP Version: (2, 0)
+[2025-10-08 22:42:44 +0530] [7737] [WARNING] Invalid request from ip=167.94.138.112: Invalid HTTP Version: (2, 0)
+[2025-10-09 00:47:47 +0530] [7737] [WARNING] Invalid request from ip=199.45.154.156: Invalid HTTP Version: (2, 0)
+[2025-10-09 00:47:56 +0530] [7736] [WARNING] Invalid request from ip=199.45.154.156: Invalid HTTP Version: (2, 0)
+[2025-10-09 09:04:10 +0530] [7738] [WARNING] Invalid request from ip=3.131.215.38: Invalid HTTP request line: 'SSH-2.0-Go'
+[2025-10-09 10:27:59 +0530] [7738] [WARNING] Invalid request from ip=2.57.121.20: Invalid HTTP request line: '\x03\x00\x00/*à\x00\x00\x00\x00\x00Cookie: mstshash=Administr'
+[2025-10-09 12:16:31 +0530] [7738] [WARNING] Invalid request from ip=2.57.121.20: Invalid HTTP request line: '\x03\x00\x00/*à\x00\x00\x00\x00\x00Cookie: mstshash=Administr'
+[2025-10-10 01:49:25 +0530] [7736] [WARNING] Invalid request from ip=167.94.138.53: Invalid HTTP Version: (2, 0)
+[2025-10-10 01:49:37 +0530] [7738] [WARNING] Invalid request from ip=167.94.138.53: Invalid HTTP Version: (2, 0)
+[2025-10-10 08:29:47 +0530] [7736] [WARNING] Invalid request from ip=161.35.71.12: Invalid HTTP request line: ''
+[2025-10-10 08:54:13 +0530] [7736] [WARNING] Invalid request from ip=3.137.73.221: Invalid HTTP request line: 'SSH-2.0-Go'
+[2025-10-10 21:19:55 +0530] [7736] [WARNING] Invalid request from ip=167.94.146.59: Invalid HTTP Version: (2, 0)
+[2025-10-10 21:20:07 +0530] [7738] [WARNING] Invalid request from ip=167.94.146.59: Invalid HTTP Version: (2, 0)
