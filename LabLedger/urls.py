@@ -26,4 +26,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # Refresh access token
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),  # Verify if token is valid
 ]
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# change this to serve media files during development when deploying to production use a proper web server
+# This will now work because DEBUG is True
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
