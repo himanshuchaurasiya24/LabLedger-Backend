@@ -1,5 +1,4 @@
 from rest_framework import permissions
-from rest_framework import permissions
 
 class CenterDetailPermission(permissions.BasePermission):
     """Superuser: full CRUD, Admin: read+update, Normal: read-only"""
