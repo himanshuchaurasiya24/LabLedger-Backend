@@ -147,8 +147,8 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = [
         "bill_number",
         "patient_name",
-        "diagnosis_type__name",
-        "diagnosis_type__category",
+        "bill_diagnosis_types__diagnosis_type__name",
+        "bill_diagnosis_types__diagnosis_type__category",
         "referred_by_doctor__first_name",
         "referred_by_doctor__last_name",
         "franchise_name__franchise_name", # ✅ Updated for ForeignKey relationship
@@ -165,7 +165,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_create(self, serializer):
-        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
+        serializer.save()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -175,7 +175,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(test_done_by=self.request.user, center_detail=self.request_detail)
+        serializer.save()
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()
@@ -275,11 +275,11 @@ class ReferralStatsViewSet(viewsets.ViewSet):
                 .annotate(
                     doctor_full_name=Concat("referred_by_doctor__first_name", Value(" "), "referred_by_doctor__last_name"),
                     total=Count("id"),
-                    ultrasound=Count("id", filter=Q(diagnosis_type__category="Ultrasound")),
-                    ecg=Count("id", filter=Q(diagnosis_type__category="ECG")),
-                    xray=Count("id", filter=Q(diagnosis_type__category="X-Ray")),
-                    pathology=Count("id", filter=Q(diagnosis_type__category="Pathology")),
-                    franchise_lab=Count("id", filter=Q(diagnosis_type__category="Franchise Lab")),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Ultrasound")),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="ECG")),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="X-Ray")),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Pathology")),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Franchise Lab")),
                     incentive_amount=Sum("incentive_amount"),
                 )
                 .values("referred_by_doctor__id", "doctor_full_name", "total", "ultrasound", "ecg", "xray", "pathology", "franchise_lab", "incentive_amount")
@@ -318,11 +318,11 @@ class BillChartStatsViewSet(viewsets.ViewSet):
                 .values("day")
                 .annotate(
                     total=Count("id"),
-                    ultrasound=Count("id", filter=Q(diagnosis_type__category="Ultrasound")),
-                    ecg=Count("id", filter=Q(diagnosis_type__category="ECG")),
-                    xray=Count("id", filter=Q(diagnosis_type__category="X-Ray")),
-                    pathology=Count("id", filter=Q(diagnosis_type__category="Pathology")),
-                    franchise_lab=Count("id", filter=Q(diagnosis_type__category="Franchise Lab")),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Ultrasound")),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="ECG")),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="X-Ray")),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Pathology")),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Franchise Lab")),
                 )
                 .order_by("day")
             )
@@ -364,13 +364,13 @@ class DoctorBillGrowthStatsView(APIView):
             total_incentive=Sum('incentive_amount')
         )
         # This line was added to get the diagnosis breakdown
-        diagnosis_counts = qs.values('diagnosis_type__category').annotate(count=Count('id'))
+        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(count=Count('id'))
 
         return {
             "total_bills": aggregates['total_bills'] or 0,
             "total_incentive": aggregates['total_incentive'] or 0,
             # This line was added to include the breakdown in the response
-            "diagnosis_counts": {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+            "diagnosis_counts": {item['bill_diagnosis_types__diagnosis_type__category']: item['count'] for item in diagnosis_counts}
         }
 
     def get_filtered_queryset(self, start_date, end_date, base_qs):
@@ -420,10 +420,10 @@ class BillGrowthStatsView(APIView):
 
     def aggregate(self, qs):
         total_bills = qs.count()
-        diagnosis_counts = qs.values('diagnosis_type__category').annotate(count=Count('id'))
+        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(count=Count('id'))
         return {
             "total_bills": total_bills,
-            "diagnosis_counts": {item['diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+            "diagnosis_counts": {item['bill_diagnosis_types__diagnosis_type__category']: item['count'] for item in diagnosis_counts}
         }
 
     def get_filtered_queryset(self, start_date, end_date, base_qs):
@@ -498,15 +498,15 @@ class DoctorIncentiveStatsView(APIView):
         """Helper to perform the incentive aggregation on a queryset."""
         total_incentive_data = qs.aggregate(total=Sum('incentive_amount', default=0))
         
-        breakdown_data = qs.values('diagnosis_type__category').annotate(
+        breakdown_data = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(
             category_total=Sum('incentive_amount')
         ).order_by()
 
         return {
             "total_bills": total_incentive_data['total'] or 0,
             "diagnosis_counts": {
-                item['diagnosis_type__category']: item['category_total']
-                for item in breakdown_data if item['diagnosis_type__category']
+                item['bill_diagnosis_types__diagnosis_type__category']: item['category_total']
+                for item in breakdown_data if item['bill_diagnosis_types__diagnosis_type__category']
             }
         }
 
@@ -593,7 +593,7 @@ class FlexibleIncentiveReportView(APIView):
             base_qs = base_qs.filter(bill_status='Fully Paid')
 
         final_bills = base_qs.select_related(
-            'referred_by_doctor', 'diagnosis_type', 'franchise_name'
+            'referred_by_doctor', 'franchise_name'
         ).order_by('referred_by_doctor__first_name', 'referred_by_doctor__last_name')
 
         response_data = []

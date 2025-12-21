@@ -47,7 +47,7 @@ class BillFilter(django_filters.FilterSet):
     patient_name = django_filters.CharFilter(field_name='patient_name', lookup_expr='icontains')
     patient_age = django_filters.NumberFilter(field_name='patient_age')
     patient_sex = django_filters.CharFilter(field_name='patient_sex', lookup_expr='iexact')
-    diagnosis_type = django_filters.NumberFilter(field_name='diagnosis_type__id')
+    diagnosis_type = django_filters.NumberFilter(field_name='bill_diagnosis_types__diagnosis_type__id')
     referred_by_doctor = django_filters.NumberFilter(field_name='referred_by_doctor__id')
     test_done_by = django_filters.NumberFilter(field_name='test_done_by__id')
 

@@ -40,6 +40,7 @@ CATEGORY_CHOICES = [
     ('ECG', 'ECG'),
     ('Ultrasound', 'Ultrasound'),
     ('Franchise Lab', 'Franchise Lab'),
+    ('Others', 'Others'),
 ]
 phone_regex = RegexValidator(
     regex=r'^\+?[0-9]{1,15}$',
@@ -80,6 +81,11 @@ class Doctor(models.Model):
            validate_incentive_percentage
         ]
     )
+    others_percentage = models.PositiveIntegerField(default=50,
+        validators=[
+           validate_incentive_percentage
+        ]
+    )
 
 
     def __str__(self):
@@ -102,6 +108,17 @@ class FranchiseName(models.Model):
     def __str__(self):
         return f"{self.franchise_name}, {self.address}, {self.phone_number}"
 
+class BillDiagnosisType(models.Model):
+    """Junction model to link Bill with multiple DiagnosisTypes"""
+    bill = models.ForeignKey('Bill', on_delete=models.CASCADE, related_name='bill_diagnosis_types')
+    diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name='bill_references')
+    price_at_time = models.IntegerField()  # Store price at time of bill creation
+    
+    class Meta:
+        unique_together = ('bill', 'diagnosis_type')
+    
+    def __str__(self):
+        return f"{self.bill.bill_number} - {self.diagnosis_type.name}"
 
 class Bill(models.Model):
     bill_number = models.CharField(max_length=22, unique=True, editable=False)
@@ -118,7 +135,7 @@ class Bill(models.Model):
             )
         ]
     )
-    diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name="diagnosis_type")
+    diagnosis_types = models.ManyToManyField(DiagnosisType, through='BillDiagnosisType', related_name="bills")
     test_done_by = models.ForeignKey(StaffAccount, on_delete=models.CASCADE, related_name="test_done_by", null=True, blank=True)
     referred_by_doctor = models.ForeignKey(
         Doctor, on_delete=models.CASCADE, null=True, blank=True, related_name="referred_patients_by_doctor"
@@ -139,36 +156,30 @@ class Bill(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_bill")
 
     def clean(self):
-        total = int(self.diagnosis_type.price or 0)
+        # Note: For many-to-many fields, we need to validate after the instance is saved
+        # This clean() method will handle basic validations that don't require m2m data
         paid = int(self.paid_amount or 0)
         bill_status = self.bill_status
-        diagnosis_type = self.diagnosis_type
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
 
-        if not diagnosis_type:
-            raise ValidationError("Diagnosis type must be selected.")
-        if diagnosis_type.category == "Franchise Lab" and not self.franchise_name:
-            raise ValidationError({
-                'franchise_name': "A franchise name is required for 'Franchise Lab' diagnosis types."
-            })
-        elif diagnosis_type.category != "Franchise Lab" and self.franchise_name:
-            raise ValidationError({
-                'franchise_name': 'Franchise name must be empty for non-franchise diagnosis types.'
-            })
-        # ----------------------------------------
-
-        # Bill status and amount validations
+        # Bill status validations
         if bill_status not in dict(BILL_STATUS_CHOICES):
             raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")
-        if bill_status == 'Fully Paid' and total != paid + center_disc + doctor_disc:
-            raise ValidationError({
-                'paid_amount': f"Total amount ({total}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
-            })
-        if bill_status == 'Partially Paid' and total <= paid + center_disc + doctor_disc:
-            raise ValidationError({
-                'paid_amount': f"For a partially paid bill, total amount ({total}) must be greater than paid ({paid}) + discounts ({center_disc + doctor_disc})."
-            })
+        
+        # For M2M fields, total_amount validation needs to happen after save
+        # We'll do a simple check here if total_amount is already set
+        if hasattr(self, 'total_amount') and self.total_amount:
+            total = int(self.total_amount or 0)
+            if bill_status == 'Fully Paid' and total != paid + center_disc + doctor_disc:
+                raise ValidationError({
+                    'paid_amount': f"Total amount ({total}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
+                })
+            if bill_status == 'Partially Paid' and total <= paid + center_disc + doctor_disc:
+                raise ValidationError({
+                    'paid_amount': f"For a partially paid bill, total amount ({total}) must be greater than paid ({paid}) + discounts ({center_disc + doctor_disc})."
+                })
+        
         if bill_status == 'Unpaid' and (paid > 0 or center_disc > 0 or doctor_disc > 0):
             raise ValidationError({
                 'paid_amount': "For an unpaid bill, paid amount and all discounts must be zero."
@@ -180,51 +191,106 @@ class Bill(models.Model):
             timestamp = now.strftime('%Y%m%d%H%M%S%f')
             self.bill_number = f"LL{timestamp}"
 
-        if self.diagnosis_type:
-            self.total_amount = int(self.diagnosis_type.price)
+        # For new instances, we need to save first before we can add m2m relationships
+        is_new = self.pk is None
         
-        # Run all model validations before saving
+        # Set total_amount to 0 initially for new bills (will be updated after m2m is set)
+        if is_new:
+            if self.total_amount is None:
+                self.total_amount = 0
+            if self.incentive_amount is None:
+                self.incentive_amount = 0
+        
+        # Run basic validations
         self.full_clean()
-
-        # Incentive calculation logic
-        total = int(self.total_amount or 0)
+        
+        # Save the bill instance first
+        super().save(*args, **kwargs)
+        
+    def calculate_totals_and_incentive(self):
+        """
+        Calculate total_amount and incentive_amount based on all diagnosis types.
+        This should be called after the m2m relationship is set up.
+        """
+        # Calculate total amount from all diagnosis types
+        bill_diagnosis_types = self.bill_diagnosis_types.all()
+        
+        if not bill_diagnosis_types.exists():
+            self.total_amount = 0
+            self.incentive_amount = 0
+            super(Bill, self).save(update_fields=['total_amount', 'incentive_amount'])
+            return
+        
+        # Check if any diagnosis type is Franchise Lab
+        has_franchise_lab = any(bdt.diagnosis_type.category == 'Franchise Lab' for bdt in bill_diagnosis_types)
+        has_non_franchise = any(bdt.diagnosis_type.category != 'Franchise Lab' for bdt in bill_diagnosis_types)
+        
+        # Validate franchise name requirement
+        if has_franchise_lab and not self.franchise_name:
+            raise ValidationError({
+                'franchise_name': "A franchise name is required when 'Franchise Lab' diagnosis type is selected."
+            })
+        elif not has_franchise_lab and has_non_franchise and self.franchise_name:
+            # Clear franchise name if no franchise lab diagnosis types
+            self.franchise_name = None
+        
+        # Calculate total amount
+        total_amount = sum(bdt.price_at_time for bdt in bill_diagnosis_types)
+        self.total_amount = total_amount
+        
+        # Calculate incentive
         paid = int(self.paid_amount or 0)
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
-        print(f"{doctor_disc} doctor discount")
-        print(f"{center_disc} center discount")
-        doctor_incentive = 0
-
-        if self.referred_by_doctor and self.diagnosis_type:
+        total_incentive = 0
+        
+        if self.referred_by_doctor:
             doctor = self.referred_by_doctor
-            category = self.diagnosis_type.category
             
-            percentage_map = {
-                'Ultrasound': doctor.ultrasound_percentage,
-                'Pathology': doctor.pathology_percentage,
-                'ECG': doctor.ecg_percentage,
-                'X-Ray': doctor.xray_percentage,
-                'Franchise Lab': doctor.franchise_lab_percentage,
-            }
-            percent = percentage_map.get(category, 0)
-            print(f"{percent} percent")
-            full_incentive = (total * percent) // 100
-            print(f"{full_incentive} full incentive")
-
-            if total == paid+center_disc or (doctor_disc == 0 and center_disc > 0):
-                print("if")
-                doctor_incentive = full_incentive
+            # Calculate incentive for each diagnosis type
+            for bdt in bill_diagnosis_types:
+                category = bdt.diagnosis_type.category
+                price = bdt.price_at_time
+                
+                percentage_map = {
+                    'Ultrasound': doctor.ultrasound_percentage,
+                    'Pathology': doctor.pathology_percentage,
+                    'ECG': doctor.ecg_percentage,
+                    'X-Ray': doctor.xray_percentage,
+                    'Franchise Lab': doctor.franchise_lab_percentage,
+                    'Others': doctor.others_percentage,
+                }
+                
+                percent = percentage_map.get(category, 0)
+                diagnosis_incentive = (price * percent) // 100
+                total_incentive += diagnosis_incentive
+            
+            # Apply discounts to the total incentive
+            if total_amount == paid + center_disc or (doctor_disc == 0 and center_disc > 0):
+                self.incentive_amount = total_incentive
             elif doctor_disc > 0:
-                print("el if")
-                doctor_incentive = full_incentive - doctor_disc
+                self.incentive_amount = total_incentive - doctor_disc
             else:
-                print("else")
-                doctor_incentive = full_incentive
-        print(doctor_incentive)
-        self.incentive_amount = doctor_incentive
-
-        super().save(*args, **kwargs)
-    
+                self.incentive_amount = total_incentive
+        else:
+            self.incentive_amount = 0
+        
+        # Validate bill status with updated total
+        paid = int(self.paid_amount or 0)
+        bill_status = self.bill_status
+        
+        if bill_status == 'Fully Paid' and self.total_amount != paid + center_disc + doctor_disc:
+            raise ValidationError({
+                'paid_amount': f"Total amount ({self.total_amount}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
+            })
+        if bill_status == 'Partially Paid' and self.total_amount <= paid + center_disc + doctor_disc:
+            raise ValidationError({
+                'paid_amount': f"For a partially paid bill, total amount ({self.total_amount}) must be greater than paid ({paid}) + discounts ({center_disc + doctor_disc})."
+            })
+        
+        # Save with updated totals
+        super(Bill, self).save(update_fields=['total_amount', 'incentive_amount', 'franchise_name'])
+        
     def __str__(self):
         doctor_name = "No Doctor"
         if self.referred_by_doctor:
