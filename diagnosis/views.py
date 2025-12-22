@@ -274,13 +274,13 @@ class ReferralStatsViewSet(viewsets.ViewSet):
                 qs.values("referred_by_doctor")
                 .annotate(
                     doctor_full_name=Concat("referred_by_doctor__first_name", Value(" "), "referred_by_doctor__last_name"),
-                    total=Count("id"),
-                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound")),
-                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG")),
-                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray")),
-                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology")),
-                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True)),
-                    incentive_amount=Sum("incentive_amount"),
+                    total=Count("id", distinct=True),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound"), distinct=True),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG"), distinct=True),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray"), distinct=True),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology"), distinct=True),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True), distinct=True),
+                    incentive_amount=Sum("incentive_amount", distinct=True),
                 )
                 .values("referred_by_doctor__id", "doctor_full_name", "total", "ultrasound", "ecg", "xray", "pathology", "franchise_lab", "incentive_amount")
                 .order_by("-total")

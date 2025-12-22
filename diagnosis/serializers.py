@@ -89,12 +89,12 @@ class DoctorSerializer(serializers.ModelSerializer):
     category_percentages = DoctorCategoryPercentageSerializer(many=True, required=False)
     
     # Make old fields optional with default 0 for backward compatibility
-    ultrasound_percentage = serializers.IntegerField(required=False, default=0)
-    pathology_percentage = serializers.IntegerField(required=False, default=0)
-    ecg_percentage = serializers.IntegerField(required=False, default=0)
-    xray_percentage = serializers.IntegerField(required=False, default=0)
-    franchise_lab_percentage = serializers.IntegerField(required=False, default=0)
-    others_percentage = serializers.IntegerField(required=False, default=0)
+    ultrasound_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
+    pathology_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
+    ecg_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
+    xray_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
+    franchise_lab_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
+    others_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
 
     class Meta:
         model = Doctor
@@ -118,6 +118,15 @@ class DoctorSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         category_percentages_data = validated_data.pop('category_percentages', [])
+        
+        # Set defaults for old percentage fields if not provided
+        validated_data.setdefault('ultrasound_percentage', 0)
+        validated_data.setdefault('pathology_percentage', 0)
+        validated_data.setdefault('ecg_percentage', 0)
+        validated_data.setdefault('xray_percentage', 0)
+        validated_data.setdefault('franchise_lab_percentage', 0)
+        validated_data.setdefault('others_percentage', 0)
+        
         doctor = Doctor.objects.create(**validated_data)
         
         # Create category percentages if provided
@@ -359,20 +368,9 @@ class BillSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         diagnosis_type_ids = validated_data.pop('diagnosis_types', None)
         
-        # Update basic fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
         user = self.context['request'].user
-        instance.center_detail = user.center_detail
-        instance.test_done_by = user
-        try:
-            instance.save()
-        except DjangoValidationError as e:
-            # Convert Django ValidationError to DRF ValidationError for proper API response
-            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
         
-        # Update diagnosis types if provided
+        # Update diagnosis types FIRST (before save) so validation uses new totals
         if diagnosis_type_ids is not None:
             # Clear existing diagnosis types
             instance.bill_diagnosis_types.all().delete()
@@ -390,13 +388,27 @@ class BillSerializer(serializers.ModelSerializer):
                     diagnosis_type=diagnosis_type,
                     price_at_time=diagnosis_type.price
                 )
-            
-            # Recalculate totals and incentive
-            try:
-                instance.calculate_totals_and_incentive()
-            except DjangoValidationError as e:
-                # Convert Django ValidationError to DRF ValidationError for proper API response
-                raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
+        
+        # NOW update basic fields and save
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.center_detail = user.center_detail
+        instance.test_done_by = user
+        
+        # Calculate totals BEFORE save so validation has correct total
+        try:
+            instance.calculate_totals_and_incentive()
+        except DjangoValidationError as e:
+            # Convert Django ValidationError to DRF ValidationError for proper API response
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
+        
+        # Now save with correct totals - validation will pass
+        try:
+            instance.save()
+        except DjangoValidationError as e:
+            # Convert Django ValidationError to DRF ValidationError for proper API response
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
         
         return instance
 class IncentiveDiagnosisTypeSerializer(serializers.ModelSerializer):
