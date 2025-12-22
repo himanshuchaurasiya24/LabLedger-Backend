@@ -13,6 +13,7 @@ router.register(r'franchise-name', FranchiseNameViewSet, basename='franchise-nam
 router.register(r'referral-stat', ReferralStatsViewSet, basename='referral-stats')
 router.register(r'bill-chart-stat', BillChartStatsViewSet, basename='bill-chart-stats')
 router.register(r'pending-reports', PendingReportViewSet, basename='pending-report')
+router.register(r'categories', DiagnosisCategoryViewSet, basename='category')
 
 
 urlpatterns = [

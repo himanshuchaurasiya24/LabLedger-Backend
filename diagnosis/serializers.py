@@ -5,12 +5,37 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from authentication.serializers import MinimalStaffAccountSerializer
 from center_detail.serializers import MinimalCenterDetailSerializer
-from .models import Bill, DiagnosisType, Doctor, FranchiseName, PatientReport, SampleTestReport, BillDiagnosisType
+from .models import Bill, DiagnosisType, Doctor, FranchiseName, PatientReport, SampleTestReport, BillDiagnosisType, DiagnosisCategory, DoctorCategoryPercentage
+
+
+# ========================
+# DIAGNOSIS CATEGORY SERIALIZERS
+# ========================
+
+class DiagnosisCategorySerializer(serializers.ModelSerializer):
+    """Serializer for diagnosis categories"""
+    class Meta:
+        model = DiagnosisCategory
+        fields = ['id', 'name', 'description', 'is_franchise_lab', 'is_active']
+
+
+class DoctorCategoryPercentageSerializer(serializers.ModelSerializer):
+    """Serializer for doctor category percentages"""
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    percentage = serializers.IntegerField(required=False, default=0)
+    
+    class Meta:
+        model = DoctorCategoryPercentage
+        fields = ['id', 'category', 'category_name', 'percentage']
+
 
 class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
+    category = serializers.PrimaryKeyRelatedField(read_only=True)  # Explicitly serialize as ID
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    
     class Meta:
         model = DiagnosisType
-        fields = ['id', 'name', 'category', 'price']
+        fields = ['id', 'name', 'category', 'category_name', 'price']
 
 class MinimalBillSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,12 +54,12 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
 
 # --- Main Model Serializers (Refactored) ---
 class DiagnosisTypeSerializer(serializers.ModelSerializer):
-    # center_detail = MinimalCenterDetailSerializer(read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = DiagnosisType
-        fields = ['id', 'name', 'category','price']
-        read_only_fields = ['center_detail']
+        fields = ['id', 'name', 'category', 'category_name', 'price']
+        read_only_fields = ['center_detail', 'category_name']
 
     def validate(self, attrs):
         """
@@ -61,7 +86,15 @@ class DiagnosisTypeSerializer(serializers.ModelSerializer):
             
         return attrs
 class DoctorSerializer(serializers.ModelSerializer):
-    # center_detail = MinimalCenterDetailSerializer(read_only=True)
+    category_percentages = DoctorCategoryPercentageSerializer(many=True, required=False)
+    
+    # Make old fields optional with default 0 for backward compatibility
+    ultrasound_percentage = serializers.IntegerField(required=False, default=0)
+    pathology_percentage = serializers.IntegerField(required=False, default=0)
+    ecg_percentage = serializers.IntegerField(required=False, default=0)
+    xray_percentage = serializers.IntegerField(required=False, default=0)
+    franchise_lab_percentage = serializers.IntegerField(required=False, default=0)
+    others_percentage = serializers.IntegerField(required=False, default=0)
 
     class Meta:
         model = Doctor
@@ -78,9 +111,38 @@ class DoctorSerializer(serializers.ModelSerializer):
             'ecg_percentage', 
             'xray_percentage', 
             'franchise_lab_percentage',
-            'others_percentage'
+            'others_percentage',
+            'category_percentages',
         ]
         read_only_fields = ['id', 'center_detail']
+
+    def create(self, validated_data):
+        category_percentages_data = validated_data.pop('category_percentages', [])
+        doctor = Doctor.objects.create(**validated_data)
+        
+        # Create category percentages if provided
+        for cat_perc_data in category_percentages_data:
+            DoctorCategoryPercentage.objects.create(doctor=doctor, **cat_perc_data)
+        
+        return doctor
+    
+    def update(self, instance, validated_data):
+        category_percentages_data = validated_data.pop('category_percentages', None)
+        
+        # Update doctor fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update category percentages if provided
+        if category_percentages_data is not None:
+            # Delete existing category percentages
+            instance.category_percentages.all().delete()
+            # Create new ones
+            for cat_perc_data in category_percentages_data:
+                DoctorCategoryPercentage.objects.create(doctor=instance, **cat_perc_data)
+        
+        return instance
 
     def validate(self, attrs):
         """
@@ -246,7 +308,8 @@ class BillSerializer(serializers.ModelSerializer):
                 id__in=diagnosis_type_ids,
                 center_detail=user_center
             )
-            has_franchise_lab = diagnosis_types.filter(category='Franchise Lab').exists()
+            # Check if franchise_name is required (any diagnosis type has franchise lab category)
+            has_franchise_lab = diagnosis_types.filter(category__is_franchise_lab=True).exists()
             
             if has_franchise_lab and not attrs.get('franchise_name'):
                 raise serializers.ValidationError({
@@ -345,9 +408,11 @@ class IncentiveFranchiseNameSerializer(serializers.ModelSerializer):
         model = FranchiseName
         fields= ['franchise_name']
 class IncentiveDoctorSerializer (serializers.ModelSerializer):
+    category_percentages = DoctorCategoryPercentageSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Doctor
-        fields=['id', 'first_name','last_name','hospital_name', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage', 'others_percentage']
+        fields=['id', 'first_name','last_name','hospital_name', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage', 'others_percentage', 'category_percentages']
 class IncentiveBillSerializer(serializers.ModelSerializer):
     """
     A read-only serializer for displaying nested bill details in reports.

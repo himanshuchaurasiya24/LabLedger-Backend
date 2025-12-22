@@ -275,11 +275,11 @@ class ReferralStatsViewSet(viewsets.ViewSet):
                 .annotate(
                     doctor_full_name=Concat("referred_by_doctor__first_name", Value(" "), "referred_by_doctor__last_name"),
                     total=Count("id"),
-                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Ultrasound")),
-                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="ECG")),
-                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="X-Ray")),
-                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Pathology")),
-                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Franchise Lab")),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound")),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG")),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray")),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology")),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True)),
                     incentive_amount=Sum("incentive_amount"),
                 )
                 .values("referred_by_doctor__id", "doctor_full_name", "total", "ultrasound", "ecg", "xray", "pathology", "franchise_lab", "incentive_amount")
@@ -318,11 +318,11 @@ class BillChartStatsViewSet(viewsets.ViewSet):
                 .values("day")
                 .annotate(
                     total=Count("id"),
-                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Ultrasound")),
-                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="ECG")),
-                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="X-Ray")),
-                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Pathology")),
-                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category="Franchise Lab")),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound")),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG")),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray")),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology")),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True)),
                 )
                 .order_by("day")
             )
@@ -582,7 +582,7 @@ class FlexibleIncentiveReportView(APIView):
             base_qs = base_qs.filter(franchise_name_id__in=franchise_ids)
             
         if diagnosis_type_ids:
-            base_qs = base_qs.filter(diagnosis_type_id__in=diagnosis_type_ids)
+            base_qs = base_qs.filter(diagnosis_types__id__in=diagnosis_type_ids)
         
         if bill_statuses:
             status_query = Q()
@@ -637,4 +637,28 @@ class PendingReportViewSet(CenterDetailFilterMixin, viewsets.ReadOnlyModelViewSe
     def get_queryset(self):
         base_queryset = super().get_queryset()
 
-        return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")[:40]
+        return base_queryset.filter(report__isnull=True).order_by("-date_of_bill", "-id")[:40]# ========================
+# CATEGORY VIEWSET
+# ========================
+
+class DiagnosisCategoryViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for DiagnosisCategory with specific permissions:
+    - LIST, RETRIEVE, CREATE: All authenticated users (from same center)
+    - UPDATE, PARTIAL_UPDATE, DESTROY: Admin only
+    """
+    serializer_class = DiagnosisCategorySerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsUserNotLocked, IsSubscriptionActive]
+    
+    def get_queryset(self):
+        # Categories are global, not per-center
+        # Order by name alphabetically
+        return DiagnosisCategory.objects.filter(
+            is_active=True
+        ).order_by('name')
+    
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsUserNotLocked(), IsSubscriptionActive(), IsAdminUser()]
+        return [permissions.IsAuthenticated(), IsUserNotLocked(), IsSubscriptionActive()]

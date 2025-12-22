@@ -7,7 +7,9 @@ from .models import (
     DiagnosisType,
     PatientReport,
     SampleTestReport,
-    FranchiseName
+    FranchiseName,
+    DiagnosisCategory,
+    DoctorCategoryPercentage,
 )
 
 # A generic admin class that includes our filtering for simple models
@@ -50,3 +52,5 @@ custom_admin_site.register(DiagnosisType, FilteredBaseAdmin)
 custom_admin_site.register(PatientReport, FilteredBaseAdmin)
 custom_admin_site.register(SampleTestReport, FilteredBaseAdmin)
 custom_admin_site.register(FranchiseName, FilteredBaseAdmin)
+custom_admin_site.register(DiagnosisCategory)
+custom_admin_site.register(DoctorCategoryPercentage)

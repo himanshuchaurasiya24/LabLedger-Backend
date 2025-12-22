@@ -46,59 +46,128 @@ phone_regex = RegexValidator(
     regex=r'^\+?[0-9]{1,15}$',
     message='Invalid phone number. Please enter a valid phone number.'
 )
+
+
+# ========================
+# DIAGNOSIS CATEGORY MODEL
+# ========================
+
+class DiagnosisCategory(models.Model):
+    """
+    Category for diagnosis types (e.g., Ultrasound, Pathology, ECG, etc.).
+    Replaces hardcoded CATEGORY_CHOICES to allow dynamic category management.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    is_franchise_lab = models.BooleanField(
+        default=False,
+        help_text="If True, bills with this category require franchise name"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Diagnosis Category"
+        verbose_name_plural = "Diagnosis Categories"
+        ordering = ['name']
+    
+    def delete(self, *args, **kwargs):
+        """
+        Custom delete to ensure each diagnosis type's delete method is called
+        (which implements smart cascade logic for bills)
+        """
+        # Get all diagnosis types in this category
+        diagnosis_types = list(self.diagnosis_types.all())
+        
+        # Delete each one individually to trigger their custom delete logic
+        for dt in diagnosis_types:
+            dt.delete()
+        
+        # Now delete the category itself
+        super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class Doctor(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail")
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    hospital_name = models.CharField(max_length=30, blank=False, null = False)
-    address = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=15,unique = True, validators=[phone_regex]
-)
-    email = models.EmailField(blank=True, null= True, max_length=30)
-    ultrasound_percentage = models.PositiveIntegerField(default=50,
-       validators=[
-           validate_incentive_percentage
-        ]
-    )
-
-    pathology_percentage = models.PositiveIntegerField(default=50,
-       validators=[
-           validate_incentive_percentage
-        ]
-    )
-    ecg_percentage = models.PositiveIntegerField(default=50,
-       validators=[
-           validate_incentive_percentage
-        ]
-    )
-    xray_percentage = models.PositiveIntegerField(default=50,
-        validators=[
-           validate_incentive_percentage
-        ]
-    )
-    franchise_lab_percentage = models.PositiveIntegerField(default=30,
-        validators=[
-           validate_incentive_percentage
-        ]
-    )
-    others_percentage = models.PositiveIntegerField(default=50,
-        validators=[
-           validate_incentive_percentage
-        ]
-    )
-
+    hospital_name = models.CharField(max_length=200, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    
+    # Old percentage fields - kept for backward compatibility, nullable
+    ultrasound_percentage = models.IntegerField(null=True, blank=True, default=0)
+    pathology_percentage = models.IntegerField(null=True, blank=True, default=0)
+    ecg_percentage = models.IntegerField(null=True, blank=True, default=0)
+    xray_percentage = models.IntegerField(null=True, blank=True, default=0)
+    franchise_lab_percentage = models.IntegerField(null=True, blank=True, default=0)
+    others_percentage = models.IntegerField(null=True, blank=True, default=0)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} {self.address} {self.phone_number}"
 
 
+# ========================
+# DOCTOR CATEGORY PERCENTAGE
+# ========================
+
+class DoctorCategoryPercentage(models.Model):
+    """
+    Junction model to store dynamic incentive percentages for each category per doctor.
+    Replaces individual percentage fields (ultrasound_percentage, pathology_percentage, etc.)
+    """
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='category_percentages')
+    category = models.ForeignKey(DiagnosisCategory, on_delete=models.CASCADE, related_name='doctor_percentages')
+    percentage = models.PositiveIntegerField(
+        default=50,
+        validators=[validate_incentive_percentage]
+    )
+
+    class Meta:
+        unique_together = ('doctor', 'category')
+        verbose_name = "Doctor Category Percentage"
+        verbose_name_plural = "Doctor Category Percentages"
+
+    def __str__(self):
+        return f"{self.doctor} - {self.category.name}: {self.percentage}%"
+
+
 class DiagnosisType(models.Model):
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_diagnosis")
     name = models.CharField(max_length=255)
-    category = models.CharField(choices=CATEGORY_CHOICES, max_length=50)
+    category = models.ForeignKey(DiagnosisCategory, on_delete=models.CASCADE, related_name='diagnosis_types')
     price = models.IntegerField()
+    
+    def delete(self, *args, **kwargs):
+        """
+        Smart cascade delete:
+        - Delete bills that ONLY have this diagnosis type
+        - Keep bills that have other diagnosis types (just remove this type)
+        """
+        # Find all bills that reference this diagnosis type
+        bill_diagnosis_types = self.bill_references.all()
+        
+        # For each bill, check if it only has this diagnosis type
+        for bdt in bill_diagnosis_types:
+            bill = bdt.bill
+            # Count how many diagnosis types this bill has
+            diagnosis_count = bill.bill_diagnosis_types.count()
+            
+            if diagnosis_count == 1:
+                # This is the only diagnosis type, delete the entire bill
+                bill.delete()
+            # If diagnosis_count > 1, the CASCADE will just remove the BillDiagnosisType entry
+        
+        # Now delete the diagnosis type itself (CASCADE will handle remaining BillDiagnosisType entries)
+        super().delete(*args, **kwargs)
+    
     def __str__(self):
-        return f"{self.category} - {self.name} - {self.price} - {self.center_detail.center_name}"
+        return f"{self.category.name} - {self.name} - {self.price} - {self.center_detail.center_name}"
 
 class FranchiseName(models.Model):
     franchise_name = models.CharField(max_length=50, unique=True)
@@ -252,16 +321,14 @@ class Bill(models.Model):
                 category = bdt.diagnosis_type.category
                 price = bdt.price_at_time
                 
-                percentage_map = {
-                    'Ultrasound': doctor.ultrasound_percentage,
-                    'Pathology': doctor.pathology_percentage,
-                    'ECG': doctor.ecg_percentage,
-                    'X-Ray': doctor.xray_percentage,
-                    'Franchise Lab': doctor.franchise_lab_percentage,
-                    'Others': doctor.others_percentage,
-                }
+                # Get doctor's percentage for this category dynamically
+                try:
+                    category_percentage = doctor.category_percentages.get(category=category)
+                    percent = category_percentage.percentage
+                except DoctorCategoryPercentage.DoesNotExist:
+                    # Default to 0 if no percentage is set for this category
+                    percent = 0
                 
-                percent = percentage_map.get(category, 0)
                 diagnosis_incentive = (price * percent) // 100
                 total_incentive += diagnosis_incentive
             
