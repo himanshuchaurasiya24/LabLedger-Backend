@@ -49,7 +49,8 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     search_fields = ['first_name', 'last_name', 'phone_number']
 
     def get_queryset(self):
-        return super().get_queryset().order_by('first_name')
+        from django.db.models.functions import Lower
+        return super().get_queryset().order_by(Lower('first_name'))
 
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
