@@ -1,0 +1,79 @@
+=== DIAGNOSIS CATEGORIES ===
+- Pathology
+- Ultrasound
+
+
+=== DOCTORS AND INCENTIVE PERCENTAGES ===
+Doctor Name                              | Ultrasound | Pathology  | ECG   | X-Ray | Franchise 
+----------------------------------------------------------------------------------------------------
+A Dr mithilesh chaurasiya                | 50         | 50         | 50    | 50    | 50        
+ASHA ASHA                                | 0          | 0          | 0     | 0     | 0         
+ASHA MANJU                               | 0          | 0          | 0     | 0     | 0         
+ASHA NAISHA                              | 0          | 0          | 0     | 0     | 0         
+ASHA RAJMUNI                             | 0          | 0          | 0     | 0     | 0         
+ASHA USHA                                | 0          | 0          | 0     | 0     | 0         
+ASHA  ROSHANI SRIWASTAV                  | 0          | 0          | 0     | 0     | 0         
+ASHA SUSHEELA DEVI                       | 50         | 50         | 50    | 50    | 50        
+DR RAMASHANKAR                           | 0          | 0          | 0     | 0     | 0         
+DR A.K GUPTA                             | 0          | 0          | 0     | 0     | 0         
+DR AMIT YADAV                            | 0          | 0          | 0     | 0     | 0         
+DR ASHOK SINGH                           | 0          | 0          | 0     | 0     | 0         
+DR DEEPAK YADAV                          | 0          | 0          | 0     | 0     | 0         
+DR JITENDRA KUMAR                        | 0          | 0          | 0     | 0     | 0         
+DR L. CHAUHAN                            | 0          | 0          | 0     | 0     | 0         
+DR LALLAN SINGH YADAV                    | 0          | 0          | 0     | 0     | 0         
+DR M SRIWASTAV                           | 0          | 0          | 0     | 0     | 0         
+DR MANOJ KUSHWAHA                        | 0          | 0          | 0     | 0     | 0         
+DR MONU CHAUHAN                          | 0          | 0          | 0     | 0     | 0         
+DR POOJA ANM                             | 0          | 0          | 0     | 0     | 0         
+DR POTANRAM BIND                         | 0          | 0          | 0     | 0     | 0         
+DR PRADEEP SINGH                         | 0          | 0          | 0     | 0     | 0         
+DR PRADEEP YADAV                         | 0          | 0          | 0     | 0     | 0         
+DR PUSHPA .                              | 0          | 0          | 0     | 0     | 0         
+DR R DAYAL                               | 0          | 0          | 0     | 0     | 0         
+DR R.K SINGH                             | 0          | 0          | 0     | 0     | 0         
+DR R.S GUPTA                             | 0          | 0          | 0     | 0     | 0         
+DR R.S KUSHWAHA                          | 0          | 0          | 0     | 0     | 0         
+DR RAJESH  KUMAR BIND                    | 0          | 0          | 0     | 0     | 0         
+DR RAMESH YADAV                          | 0          | 0          | 0     | 0     | 0         
+DR RANJEET YADAV                         | 0          | 0          | 0     | 0     | 0         
+DR RAVIKANT KUMAR                        | 0          | 0          | 0     | 0     | 0         
+DR RINKU ANM                             | 0          | 0          | 0     | 0     | 0         
+DR S.K SHARMA                            | 0          | 0          | 0     | 0     | 0         
+DR S.N VERMA                             | 0          | 0          | 0     | 0     | 0         
+DR S.S YADAV                             | 0          | 0          | 0     | 0     | 0         
+DR SAVITA SRIWASTAV                      | 0          | 0          | 0     | 0     | 0         
+DR SHYAM LAL                             | 0          | 0          | 0     | 0     | 0         
+DR SONU CHAUHAN                          | 0          | 0          | 0     | 0     | 0         
+DR SONU KUMAR KUMAR                      | 50         | 50         | 50    | 30    | 30        
+DR SUDHIR SHARMA                         | 0          | 0          | 0     | 0     | 0         
+DR SUNIL KUSHWAHA                        | 0          | 0          | 0     | 0     | 0         
+DR SUNIL YADAV                           | 0          | 0          | 0     | 0     | 0         
+DR U,S YADAV                             | 0          | 0          | 0     | 0     | 0         
+DR UMESH PAL                             | 0          | 0          | 0     | 0     | 0         
+DR V YADAV                               | 0          | 0          | 0     | 0     | 0         
+DR VIJAY KUMAR TIWARI                    | 0          | 0          | 0     | 0     | 0         
+DR VINAY SHARMA                          | 0          | 0          | 0     | 0     | 0         
+DR VIVEK BHARDWAS                        | 0          | 0          | 0     | 0     | 0         
+Dr D.K. verma                            | 50         | 50         | 50    | 50    | 30        
+Dr I J chauhan chauhan                   | 50         | 50         | 50    | 30    | 30        
+Dr S.K padey pandey                      | 50         | 50         | 50    | 30    | 30        
+Dr ashok vishwash                        | 50         | 50         | 50    | 30    | 30        
+Dr chandrashekhar chandrashekaar         | 50         | 50         | 50    | 30    | 30        
+Dr haidwar Rajbhar                       | 50         | 50         | 50    | 30    | 30        
+Dr hoshila yadav                         | 50         | 50         | 50    | 30    | 30        
+Dr j pashwan pashwan                     | 50         | 50         | 50    | 30    | 30        
+Dr madan lal prasad                      | 50         | 50         | 50    | 30    | 30        
+Dr meera devi                            | 50         | 50         | 50    | 30    | 30        
+Dr meera singh singh                     | 50         | 50         | 50    | 30    | 30        
+Dr nitish kushwaha                       | 50         | 50         | 50    | 30    | 30        
+Dr pradeep singh kushwaha                | 50         | 50         | 50    | 50    | 30        
+Dr raja ram kushwaha                     | 50         | 50         | 50    | 30    | 30        
+Dr ramsundar yadav                       | 50         | 50         | 50    | 30    | 30        
+Dr s bhardwaj bhardwaj                   | 50         | 50         | 50    | 30    | 30        
+Dr s yadav yadav                         | 50         | 50         | 50    | 50    | 30        
+Dr sofiya bano                           | 50         | 50         | 50    | 50    | 30        
+Dr u.p. gupta                            | 50         | 50         | 50    | 30    | 30        
+Dr uttam chandra                         | 50         | 50         | 50    | 30    | 30        
+Dr vibha rao                             | 50         | 50         | 50    | 50    | 30        
+Sanjay Chaurasiya                        | 0          | 0          | 0     | 0     | 0         
