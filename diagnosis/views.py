@@ -607,7 +607,7 @@ class FlexibleIncentiveReportView(APIView):
             serialized_doctor = IncentiveDoctorSerializer(doctor).data
             serialized_bills = IncentiveBillSerializer(doctor_bills, many=True).data
 
-            if serialized_bills:
+            if serialized_bills and total_incentive > 0:
                 response_data.append({
                     # The full doctor model is now in a nested object
                     "doctor": serialized_doctor, 
