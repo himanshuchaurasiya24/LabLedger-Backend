@@ -336,11 +336,16 @@ class BillSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         
         # Create the bill instance
-        bill = Bill.objects.create(
-            center_detail=user.center_detail,
-            test_done_by=user,
-            **validated_data
-        )
+        try:
+            bill = Bill.objects.create(
+                center_detail=user.center_detail,
+                test_done_by=user,
+                **validated_data
+            )
+        except DjangoValidationError as e:
+            raise DRFValidationError(
+                e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)}
+            )
         
         # Create BillDiagnosisType entries for each diagnosis type
         user_center = user.center_detail

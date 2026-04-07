@@ -78,7 +78,7 @@ class StaffAccountSerializer(serializers.ModelSerializer):
             address=validated_data['address'],
             is_admin=validated_data.get('is_admin', False),
             is_staff=validated_data.get('is_admin', False),
-            is_superuser=validated_data.get('is_admin', False),
+            is_superuser=False,
             center_detail=center_detail
         )
         user.set_password(password)

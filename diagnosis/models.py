@@ -204,9 +204,6 @@ class AuditLog(models.Model):
     
     def __str__(self):
         return f"{self.user} - {self.action} - {self.model_name} - {self.timestamp}"
-    
-    def __str__(self):
-        return f"{self.category.name} - {self.name} - {self.price} - {self.center_detail.center_name}"
 
 class FranchiseName(models.Model):
     franchise_name = models.CharField(max_length=50, unique=True)
@@ -271,6 +268,11 @@ class Bill(models.Model):
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
 
+        if paid < 0 or center_disc < 0 or doctor_disc < 0:
+            raise ValidationError({
+                'paid_amount': "Paid amount and discounts cannot be negative."
+            })
+
         # Bill status validations
         if bill_status not in dict(BILL_STATUS_CHOICES):
             raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")
@@ -330,8 +332,14 @@ class Bill(models.Model):
             return
         
         # Check if any diagnosis type is Franchise Lab
-        has_franchise_lab = any(bdt.diagnosis_type.category == 'Franchise Lab' for bdt in bill_diagnosis_types)
-        has_non_franchise = any(bdt.diagnosis_type.category != 'Franchise Lab' for bdt in bill_diagnosis_types)
+        has_franchise_lab = any(
+            bdt.diagnosis_type.category.name.lower() == 'franchise lab'
+            for bdt in bill_diagnosis_types
+        )
+        has_non_franchise = any(
+            bdt.diagnosis_type.category.name.lower() != 'franchise lab'
+            for bdt in bill_diagnosis_types
+        )
         
         # Validate franchise name requirement
         if has_franchise_lab and not self.franchise_name:

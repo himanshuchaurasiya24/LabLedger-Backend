@@ -7,7 +7,7 @@ from django.utils.timezone import now, make_aware, get_default_timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -38,6 +38,23 @@ def audit_log(user, action, model_name, object_id='', details='', request=None):
         ip_address=ip_address,
         user_agent=user_agent,
     )
+
+
+def _safe_audit_log(user, action, model_name, object_id='', details='', request=None):
+    """
+    Best-effort audit logger so business APIs are not blocked if logging fails.
+    """
+    try:
+        audit_log(
+            user=user,
+            action=action,
+            model_name=model_name,
+            object_id=object_id,
+            details=details,
+            request=request,
+        )
+    except Exception:
+        pass
 
 
 class CenterDetailFilterMixin:
@@ -83,7 +100,15 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return [perm() for perm in permission_classes]
 
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request.user.center_detail)
+        instance = serializer.save(center_detail=self.request.user.center_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='Doctor',
+            object_id=instance.pk,
+            details=f"Created doctor {instance.first_name} {instance.last_name}".strip(),
+            request=self.request,
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -96,7 +121,28 @@ class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         # ✅ REFINEMENT: Ensure the object being updated belongs to the user's center.
         if serializer.instance.center_detail != self.request.user.center_detail:
             raise PermissionDenied("You do not have permission to edit this doctor.")
-        serializer.save()
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='Doctor',
+            object_id=instance.pk,
+            details=f"Updated doctor {instance.first_name} {instance.last_name}".strip(),
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        doctor_name = f"{instance.first_name} {instance.last_name}".strip()
+        doctor_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='Doctor',
+            object_id=doctor_id,
+            details=f"Deleted doctor {doctor_name}".strip(),
+            request=self.request,
+        )
 
 class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = DiagnosisType.objects.all()
@@ -104,7 +150,7 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DiagnosisTypeFilter
-    search_fields = ['name', 'category']
+    search_fields = ['name', 'category__name']
 
     def get_queryset(self):
         return super().get_queryset().order_by('name')
@@ -118,7 +164,15 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     
     # ✅ REFACTORED: Handles assigning the center_detail automatically.
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        instance = serializer.save(center_detail=self.request_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='DiagnosisType',
+            object_id=instance.pk,
+            details=f"Created diagnosis type {instance.name}",
+            request=self.request,
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -128,7 +182,28 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        instance = serializer.save(center_detail=self.request_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='DiagnosisType',
+            object_id=instance.pk,
+            details=f"Updated diagnosis type {instance.name}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        diagnosis_name = instance.name
+        diagnosis_type_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='DiagnosisType',
+            object_id=diagnosis_type_id,
+            details=f"Deleted diagnosis type {diagnosis_name}",
+            request=self.request,
+        )
 
 class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = FranchiseName.objects.all()
@@ -151,14 +226,43 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         """
         Automatically associate the new FranchiseName with the logged-in user's center.
         """
-        serializer.save(center_detail=self.request.user.center_detail)
+        instance = serializer.save(center_detail=self.request.user.center_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='FranchiseName',
+            object_id=instance.pk,
+            details=f"Created franchise {instance.franchise_name}",
+            request=self.request,
+        )
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        instance = serializer.save(center_detail=self.request_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='FranchiseName',
+            object_id=instance.pk,
+            details=f"Updated franchise {instance.franchise_name}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        franchise_name = instance.franchise_name
+        franchise_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='FranchiseName',
+            object_id=franchise_id,
+            details=f"Deleted franchise {franchise_name}",
+            request=self.request,
+        )
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = Bill.objects.all()
@@ -184,7 +288,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         "bill_number",
         "patient_name",
         "bill_diagnosis_types__diagnosis_type__name",
-        "bill_diagnosis_types__diagnosis_type__category",
+        "bill_diagnosis_types__diagnosis_type__category__name",
         "referred_by_doctor__first_name",
         "referred_by_doctor__last_name",
         "franchise_name__franchise_name", # ✅ Updated for ForeignKey relationship
@@ -201,7 +305,15 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_create(self, serializer):
-        serializer.save()
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='Bill',
+            object_id=instance.pk,
+            details=f"Created bill {instance.bill_number}",
+            request=self.request,
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -211,7 +323,28 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save()
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='Bill',
+            object_id=instance.pk,
+            details=f"Updated bill {instance.bill_number}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        bill_number = instance.bill_number
+        bill_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='Bill',
+            object_id=bill_id,
+            details=f"Deleted bill {bill_number}",
+            request=self.request,
+        )
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()
@@ -247,7 +380,15 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Assigns the center_detail automatically during creation."""
-        serializer.save(center_detail=self.request.user.center_detail)
+        instance = serializer.save(center_detail=self.request.user.center_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='PatientReport',
+            object_id=instance.pk,
+            details=f"Created patient report for bill {instance.bill.bill_number}",
+            request=self.request,
+        )
         
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -258,7 +399,28 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """Assigns the center_detail automatically during an update."""
-        serializer.save(center_detail=self.request.user.center_detail)
+        instance = serializer.save(center_detail=self.request.user.center_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='PatientReport',
+            object_id=instance.pk,
+            details=f"Updated patient report for bill {instance.bill.bill_number}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        report_id = instance.pk
+        bill_number = instance.bill.bill_number
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='PatientReport',
+            object_id=report_id,
+            details=f"Deleted patient report for bill {bill_number}",
+            request=self.request,
+        )
 
 class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = SampleTestReport.objects.all()
@@ -282,7 +444,15 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return super().get_queryset().order_by('-id')
     
     def perform_create(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        instance = serializer.save(center_detail=self.request_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='SampleTestReport',
+            object_id=instance.pk,
+            details=f"Created sample report {instance.diagnosis_name}",
+            request=self.request,
+        )
         
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -292,7 +462,28 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
-        serializer.save(center_detail=self.request_detail)
+        instance = serializer.save(center_detail=self.request_detail)
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='SampleTestReport',
+            object_id=instance.pk,
+            details=f"Updated sample report {instance.diagnosis_name}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        diagnosis_name = instance.diagnosis_name
+        report_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='SampleTestReport',
+            object_id=report_id,
+            details=f"Deleted sample report {diagnosis_name}",
+            request=self.request,
+        )
 class ReferralStatsViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
@@ -318,7 +509,7 @@ class ReferralStatsViewSet(viewsets.ViewSet):
             return qs
 
         def get_referral_stats(qs):
-            return (
+            grouped = list(
                 qs.values("referred_by_doctor")
                 .annotate(
                     doctor_full_name=Concat("referred_by_doctor__first_name", Value(" "), "referred_by_doctor__last_name"),
@@ -328,11 +519,20 @@ class ReferralStatsViewSet(viewsets.ViewSet):
                     xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray"), distinct=True),
                     pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology"), distinct=True),
                     franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True), distinct=True),
-                    incentive_amount=Sum("incentive_amount", distinct=True),
                 )
-                .values("referred_by_doctor__id", "doctor_full_name", "total", "ultrasound", "ecg", "xray", "pathology", "franchise_lab", "incentive_amount")
+                .values("referred_by_doctor__id", "doctor_full_name", "total", "ultrasound", "ecg", "xray", "pathology", "franchise_lab")
                 .order_by("-total")
             )
+
+            incentive_map = {
+                row["referred_by_doctor"]: row["total_incentive"] or 0
+                for row in qs.values("referred_by_doctor").annotate(total_incentive=Sum("incentive_amount"))
+            }
+
+            for row in grouped:
+                row["incentive_amount"] = incentive_map.get(row["referred_by_doctor__id"], 0)
+
+            return grouped
 
         all_time_qs = Bill.objects.filter(center_detail=request.user.center_detail)
         if doctor_id:
@@ -365,12 +565,12 @@ class BillChartStatsViewSet(viewsets.ViewSet):
                 qs.annotate(day=TruncDate("date_of_bill"))
                 .values("day")
                 .annotate(
-                    total=Count("id"),
-                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound")),
-                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG")),
-                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray")),
-                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology")),
-                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True)),
+                    total=Count("id", distinct=True),
+                    ultrasound=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Ultrasound"), distinct=True),
+                    ecg=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="ECG"), distinct=True),
+                    xray=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="X-Ray"), distinct=True),
+                    pathology=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__name="Pathology"), distinct=True),
+                    franchise_lab=Count("id", filter=Q(bill_diagnosis_types__diagnosis_type__category__is_franchise_lab=True), distinct=True),
                 )
                 .order_by("day")
             )
@@ -411,14 +611,16 @@ class DoctorBillGrowthStatsView(APIView):
             total_bills=Count('id'),
             total_incentive=Sum('incentive_amount')
         )
-        # This line was added to get the diagnosis breakdown
-        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(count=Count('id'))
+        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category__name').annotate(count=Count('id', distinct=True))
 
         return {
             "total_bills": aggregates['total_bills'] or 0,
             "total_incentive": aggregates['total_incentive'] or 0,
             # This line was added to include the breakdown in the response
-            "diagnosis_counts": {item['bill_diagnosis_types__diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+            "diagnosis_counts": {
+                item['bill_diagnosis_types__diagnosis_type__category__name']: item['count']
+                for item in diagnosis_counts if item['bill_diagnosis_types__diagnosis_type__category__name']
+            }
         }
 
     def get_filtered_queryset(self, start_date, end_date, base_qs):
@@ -467,11 +669,14 @@ class BillGrowthStatsView(APIView):
         return first_day, last_day
 
     def aggregate(self, qs):
-        total_bills = qs.count()
-        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(count=Count('id'))
+        total_bills = qs.values('id').distinct().count()
+        diagnosis_counts = qs.values('bill_diagnosis_types__diagnosis_type__category__name').annotate(count=Count('id', distinct=True))
         return {
             "total_bills": total_bills,
-            "diagnosis_counts": {item['bill_diagnosis_types__diagnosis_type__category']: item['count'] for item in diagnosis_counts}
+            "diagnosis_counts": {
+                item['bill_diagnosis_types__diagnosis_type__category__name']: item['count']
+                for item in diagnosis_counts if item['bill_diagnosis_types__diagnosis_type__category__name']
+            }
         }
 
     def get_filtered_queryset(self, start_date, end_date, base_qs):
@@ -545,16 +750,18 @@ class DoctorIncentiveStatsView(APIView):
     def aggregate_incentives(self, qs):
         """Helper to perform the incentive aggregation on a queryset."""
         total_incentive_data = qs.aggregate(total=Sum('incentive_amount', default=0))
+        total_bills = qs.values('id').distinct().count()
         
-        breakdown_data = qs.values('bill_diagnosis_types__diagnosis_type__category').annotate(
+        breakdown_data = qs.values('bill_diagnosis_types__diagnosis_type__category__name').annotate(
             category_total=Sum('incentive_amount')
         ).order_by()
 
         return {
-            "total_bills": total_incentive_data['total'] or 0,
+            "total_bills": total_bills,
+            "total_incentive": total_incentive_data['total'] or 0,
             "diagnosis_counts": {
-                item['bill_diagnosis_types__diagnosis_type__category']: item['category_total']
-                for item in breakdown_data if item['bill_diagnosis_types__diagnosis_type__category']
+                item['bill_diagnosis_types__diagnosis_type__category__name']: item['category_total']
+                for item in breakdown_data if item['bill_diagnosis_types__diagnosis_type__category__name']
             }
         }
 
@@ -573,7 +780,7 @@ class DoctorIncentiveStatsView(APIView):
         if franchise_id:
             base_qs = base_qs.filter(franchise_name_id=franchise_id)
         if diagnosis_type_id:
-            base_qs = base_qs.filter(diagnosis_type_id=diagnosis_type_id)
+            base_qs = base_qs.filter(diagnosis_types__id=diagnosis_type_id).distinct()
         if bill_statuses:
             status_query = Q()
             for status in bill_statuses:
@@ -630,7 +837,7 @@ class FlexibleIncentiveReportView(APIView):
             base_qs = base_qs.filter(franchise_name_id__in=franchise_ids)
             
         if diagnosis_type_ids:
-            base_qs = base_qs.filter(diagnosis_types__id__in=diagnosis_type_ids)
+            base_qs = base_qs.filter(diagnosis_types__id__in=diagnosis_type_ids).distinct()
         
         if bill_statuses:
             status_query = Q()
@@ -676,8 +883,8 @@ class PendingReportViewSet(CenterDetailFilterMixin, viewsets.ReadOnlyModelViewSe
     search_fields = [
         "bill_number",
         "patient_name",
-        "diagnosis_type__name",
-        "diagnosis_type__category",
+        "bill_diagnosis_types__diagnosis_type__name",
+        "bill_diagnosis_types__diagnosis_type__category__name",
         "referred_by_doctor__first_name",
         "referred_by_doctor__last_name",
     ]
@@ -710,3 +917,38 @@ class DiagnosisCategoryViewSet(viewsets.ModelViewSet):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsUserNotLocked(), IsSubscriptionActive(), IsAdminUser()]
         return [permissions.IsAuthenticated(), IsUserNotLocked(), IsSubscriptionActive()]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='DiagnosisCategory',
+            object_id=instance.pk,
+            details=f"Created diagnosis category {instance.name}",
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='DiagnosisCategory',
+            object_id=instance.pk,
+            details=f"Updated diagnosis category {instance.name}",
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        category_name = instance.name
+        category_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='DiagnosisCategory',
+            object_id=category_id,
+            details=f"Deleted diagnosis category {category_name}",
+            request=self.request,
+        )

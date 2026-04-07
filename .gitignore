@@ -1,3 +1,5 @@
 logs/
 media/
 .env
+db.sqlite3
+scripts/database/exports/

@@ -9,7 +9,9 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-(!^(f!1)-eu5hoggf8t8x3ux@=1_l)0s7a1ikb1!me&e=-rk56')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise RuntimeError('DJANGO_SECRET_KEY must be set in environment variables.')
 # SECURITY WARNING: don't run with debug turned on in production!
 # set DEBUG = True to server media files during development it can not be served when DEBUG = False
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
@@ -17,12 +19,14 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '80.225.228.15,127.0.0.1,localhost').split(',')
 
 # CORS Configuration (if you have a frontend)
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS',
-    'http://80.225.228.15,http://localhost,http://127.0.0.1'
-).split(',')
+_default_cors_origins = 'http://localhost,http://127.0.0.1' if DEBUG else ''
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', _default_cors_origins).split(',')
+    if origin.strip()
+]
 
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS', 'False').lower() in ('true', '1', 't')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -73,8 +77,8 @@ WSGI_APPLICATION = 'LabLedger.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.sqlite3'),
-        'NAME': os.environ.get('DB_NAME', str(BASE_DIR / 'db.sqlite3')),
+        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.environ.get('DB_NAME', 'labledger'),
         'USER': os.environ.get('DB_USER', ''),
         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
         'HOST': os.environ.get('DB_HOST', ''),
@@ -128,8 +132,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 MINIMUM_APP_VERSION = '2.0.0'

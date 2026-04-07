@@ -11,7 +11,12 @@ class CenterDetailPermission(permissions.BasePermission):
         return view.action in ["list", "retrieve"]
 
     def has_object_permission(self, request, view, obj):
-        return self.has_permission(request, view)
+        if not self.has_permission(request, view):
+            return False
+        if request.user.is_superuser:
+            return True
+        user_center = getattr(request.user, 'center_detail', None)
+        return user_center is not None and obj.pk == user_center.pk
 
 
 class SubscriptionSuperUserOnly(permissions.BasePermission):
@@ -50,6 +55,9 @@ class IsSubscriptionActive(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
+
+        if request.user.is_superuser:
+            return True
 
         try:
             # CORRECTED LINE: Access the first subscription from the collection

@@ -17,6 +17,31 @@ from authentication.serializers import (
 )
 from center_detail.serializers import *
 from diagnosis.views import CenterDetailFilterMixin, IsAdminUser
+from diagnosis.models import AuditLog
+
+
+def _safe_audit_log(user, action, model_name, object_id='', details='', request=None):
+    """
+    Best-effort audit logger so auth operations keep working on log failure.
+    """
+    try:
+        ip_address = None
+        user_agent = ''
+        if request:
+            ip_address = request.META.get('REMOTE_ADDR')
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+
+        AuditLog.objects.create(
+            user=user,
+            action=action,
+            model_name=model_name,
+            object_id=str(object_id) if object_id else None,
+            details=details,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+    except Exception:
+        pass
 
 class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = StaffAccount.objects.all()
@@ -53,8 +78,8 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         kwargs['partial'] = True
         try:
             return super().update(request, *args, **kwargs)
-        except Exception as e:
-            return Response({"error": f"Update failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"error": "Update failed."}, status=status.HTTP_400_BAD_REQUEST)
 
     def partial_update(self, request, *args, **kwargs):
         user = request.user
@@ -65,8 +90,65 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         try:
             kwargs['partial'] = True
             return super().update(request, *args, **kwargs)
-        except Exception as e:
-            return Response({"error": f"Update failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({"error": "Update failed."}, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        _safe_audit_log(
+            user=self.request.user,
+            action='CREATE',
+            model_name='StaffAccount',
+            object_id=instance.pk,
+            details=f"Created staff user {instance.username}",
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        previous_is_admin = instance.is_admin
+        previous_is_locked = instance.is_locked
+
+        updated_instance = serializer.save()
+
+        _safe_audit_log(
+            user=self.request.user,
+            action='UPDATE',
+            model_name='StaffAccount',
+            object_id=updated_instance.pk,
+            details=f"Updated staff user {updated_instance.username}",
+            request=self.request,
+        )
+
+        if (
+            previous_is_admin != updated_instance.is_admin
+            or previous_is_locked != updated_instance.is_locked
+        ):
+            _safe_audit_log(
+                user=self.request.user,
+                action='PRIVILEGE_CHANGE',
+                model_name='StaffAccount',
+                object_id=updated_instance.pk,
+                details=(
+                    f"Privilege change for {updated_instance.username}: "
+                    f"is_admin {previous_is_admin}->{updated_instance.is_admin}, "
+                    f"is_locked {previous_is_locked}->{updated_instance.is_locked}"
+                ),
+                request=self.request,
+            )
+
+    def perform_destroy(self, instance):
+        username = instance.username
+        user_id = instance.pk
+        super().perform_destroy(instance)
+        _safe_audit_log(
+            user=self.request.user,
+            action='DELETE',
+            model_name='StaffAccount',
+            object_id=user_id,
+            details=f"Deleted staff user {username}",
+            request=self.request,
+        )
 
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
@@ -84,9 +166,19 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         if serializer and serializer.is_valid():
             try:
                 serializer.update(target_user, serializer.validated_data)
+                action = 'PASSWORD_CHANGE'
+                details = f"Password updated for user {target_user.username}"
+                _safe_audit_log(
+                    user=requesting_user,
+                    action=action,
+                    model_name='StaffAccount',
+                    object_id=target_user.pk,
+                    details=details,
+                    request=request,
+                )
                 return Response({"message": "Password updated successfully"}, status=status.HTTP_200_OK)
-            except Exception as e:
-                return Response({"error": f"Failed to update password: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            except Exception:
+                return Response({"error": "Failed to update password."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if serializer:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -98,6 +190,37 @@ def health_check(request):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == status.HTTP_200_OK:
+            user_id = response.data.get('id')
+            user = StaffAccount.objects.filter(pk=user_id).first() if user_id else None
+            _safe_audit_log(
+                user=user,
+                action='LOGIN',
+                model_name='StaffAccount',
+                object_id=user_id,
+                details=f"User login successful for {user.username}" if user else "User login successful",
+                request=request,
+            )
+        return response
+
+
+class LogoutView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        _safe_audit_log(
+            user=request.user,
+            action='LOGOUT',
+            model_name='StaffAccount',
+            object_id=request.user.pk,
+            details=f"User logout for {request.user.username}",
+            request=request,
+        )
+        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 class ValidateTokenView(APIView):
     permission_classes = [IsAuthenticated]

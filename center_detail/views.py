@@ -8,6 +8,17 @@ class CenterDetailViewSet(viewsets.ModelViewSet):
     # Add the IsSubscriptionActive permission to protect this viewset
     permission_classes = [CenterDetailPermission, IsSubscriptionActive]
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return CenterDetail.objects.all()
+
+        user_center = getattr(user, 'center_detail', None)
+        if user_center is None:
+            return CenterDetail.objects.none()
+
+        return CenterDetail.objects.filter(pk=user_center.pk)
+
     def get_serializer_class(self):
         if self.action == "list":
             return CenterDetailListSerializer
