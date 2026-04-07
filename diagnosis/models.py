@@ -165,6 +165,45 @@ class DiagnosisType(models.Model):
         
         # Now delete the diagnosis type itself (CASCADE will handle remaining BillDiagnosisType entries)
         super().delete(*args, **kwargs)
+
+
+class AuditLog(models.Model):
+    """
+    Simple audit log for tracking user actions.
+    """
+    ACTION_CHOICES = [
+        ('CREATE', 'Create'),
+        ('UPDATE', 'Update'),
+        ('DELETE', 'Delete'),
+        ('LOGIN', 'Login'),
+        ('LOGOUT', 'Logout'),
+        ('PASSWORD_CHANGE', 'Password Change'),
+        ('PRIVILEGE_CHANGE', 'Privilege Change'),
+    ]
+    
+    user = models.ForeignKey(
+        StaffAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='audit_logs'
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=100)  # e.g., 'StaffAccount', 'Bill'
+    object_id = models.CharField(max_length=100, blank=True, null=True)  # ID of the affected object
+    details = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['model_name', 'object_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user} - {self.action} - {self.model_name} - {self.timestamp}"
     
     def __str__(self):
         return f"{self.category.name} - {self.name} - {self.price} - {self.center_detail.center_name}"

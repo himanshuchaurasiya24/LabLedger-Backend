@@ -17,6 +17,29 @@ from .models import *
 from .serializers import *
 from .filters import *
 from .pagination import StandardResultsSetPagination
+from .models import AuditLog
+
+
+def audit_log(user, action, model_name, object_id='', details='', request=None):
+    """
+    Helper to create an AuditLog entry.
+    """
+    ip_address = None
+    user_agent = ''
+    if request:
+        ip_address = request.META.get('REMOTE_ADDR')
+        user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+    AuditLog.objects.create(
+        user=user,
+        action=action,
+        model_name=model_name,
+        object_id=str(object_id) if object_id else None,
+        details=details,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
+
 class CenterDetailFilterMixin:
     """
     A mixin that filters querysets based on the request.user.center_detail.
@@ -142,6 +165,18 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    
+    def get_permissions(self):
+        """
+        Allow non-admin users to create, list, retrieve.
+        Require admin for update, partial_update, destroy.
+        """
+        if self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
+        else:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+        return [perm() for perm in permission_classes]
+    
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
@@ -183,6 +218,18 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = PatientReportSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+    
+    def get_permissions(self):
+        """
+        Allow non-admin users to create, list, retrieve.
+        Require admin for update, partial_update, destroy.
+        """
+        if self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
+        else:
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
+        return [perm() for perm in permission_classes]
+    
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = PatientReportFilter
     search_fields = ['bill__patient_name', 'bill__bill_number']
@@ -226,7 +273,7 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         Instantiates and returns the list of permissions that this view requires.
         """
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, permissions.IsAdminUser]
+            permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive, IsAdminUser]
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
