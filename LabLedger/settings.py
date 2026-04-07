@@ -12,9 +12,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     raise RuntimeError('DJANGO_SECRET_KEY must be set in environment variables.')
+
+# Runtime mode switch (single-place environment control).
+# - development: DEBUG=True and USE_HTTPS=False
+# - production: DEBUG=False and USE_HTTPS=True
+APP_MODE = os.environ.get('APP_MODE', '').strip().lower()
+
 # SECURITY WARNING: don't run with debug turned on in production!
 # set DEBUG = True to server media files during development it can not be served when DEBUG = False
-DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
+if APP_MODE == 'development':
+    DEBUG = True
+elif APP_MODE == 'production':
+    DEBUG = False
+else:
+    DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '80.225.228.15,127.0.0.1,localhost').split(',')
 
@@ -143,7 +154,12 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
 # Determine if HTTPS is enabled
-USE_HTTPS = os.environ.get('USE_HTTPS', 'False').lower() in ('true', '1', 't')
+if APP_MODE == 'development':
+    USE_HTTPS = False
+elif APP_MODE == 'production':
+    USE_HTTPS = True
+else:
+    USE_HTTPS = os.environ.get('USE_HTTPS', 'False').lower() in ('true', '1', 't')
 CSRF_COOKIE_SECURE = USE_HTTPS or not DEBUG
 SESSION_COOKIE_SECURE = USE_HTTPS or not DEBUG
 
