@@ -9,20 +9,20 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# TODO: Move this to environment variable
-# SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-(!^(f!1)-eu5hoggf8t8x3ux@=1_l)0s7a1ikb1!me&e=-rk56')
-SECRET_KEY = 'django-insecure-(!^(f!1)-eu5hoggf8t8x3ux@=1_l)0s7a1ikb1!me&e=-rk56'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-(!^(f!1)-eu5hoggf8t8x3ux@=1_l)0s7a1ikb1!me&e=-rk56')
 # SECURITY WARNING: don't run with debug turned on in production!
 # set DEBUG = True to server media files during development it can not be served when DEBUG = False
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['80.225.228.15','127.0.0.1','localhost']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '80.225.228.15,127.0.0.1,localhost').split(',')
 
 # CORS Configuration (if you have a frontend)
-CORS_ALLOWED_ORIGINS = [
-    "http://80.225.228.15",
-    "https://yourdomain.com",
-]
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://80.225.228.15,http://localhost,http://127.0.0.1'
+).split(',')
+
+CORS_ALLOW_CREDENTIALS = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -73,8 +73,12 @@ WSGI_APPLICATION = 'LabLedger.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.environ.get('DB_NAME', 'labledger'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
@@ -133,11 +137,17 @@ MINIMUM_APP_VERSION = '2.0.0'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
-CSRF_COOKIE_SECURE = False  # Set to True if using HTTPS
-SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS
+
+# Determine if HTTPS is enabled
+USE_HTTPS = os.environ.get('USE_HTTPS', 'False').lower() in ('true', '1', 't')
+CSRF_COOKIE_SECURE = USE_HTTPS or not DEBUG
+SESSION_COOKIE_SECURE = USE_HTTPS or not DEBUG
 
 # HTTPS Settings (enable after setting up SSL)
-# SECURE_SSL_REDIRECT = True
-# SECURE_HSTS_SECONDS = 31536000
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
+if USE_HTTPS:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+else:
+    SECURE_SSL_REDIRECT = False
