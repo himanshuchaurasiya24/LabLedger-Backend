@@ -231,6 +231,13 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             self.user.lockout_until = None
             self.user.save()
 
+        if not self.user.is_superuser:
+            center = getattr(self.user, "center_detail", None)
+            if center and not center.subscription_is_active:
+                raise PermissionDenied(
+                    "Your subscription is inactive or has expired. Please renew to continue."
+                )
+
         data['is_admin'] = self.user.is_admin
         data['username'] = self.user.username
         data['first_name'] = self.user.first_name

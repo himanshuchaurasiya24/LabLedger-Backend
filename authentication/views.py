@@ -235,6 +235,14 @@ class ValidateTokenView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        if not user.is_superuser:
+            center = getattr(user, 'center_detail', None)
+            if center and not center.subscription_is_active:
+                return Response(
+                    {"detail": "Your subscription is inactive or has expired. Please renew to continue."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         center = getattr(user, 'center_detail', None)
         center_data = None
         if center:

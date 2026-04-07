@@ -861,7 +861,9 @@ class FlexibleIncentiveReportView(APIView):
             serialized_doctor = IncentiveDoctorSerializer(doctor).data
             serialized_bills = IncentiveBillSerializer(doctor_bills, many=True).data
 
-            if serialized_bills and total_incentive > 0:
+            # Keep all doctors with bills, including negative/zero totals,
+            # so the frontend can surface loss-making incentive periods.
+            if serialized_bills:
                 response_data.append({
                     # The full doctor model is now in a nested object
                     "doctor": serialized_doctor, 

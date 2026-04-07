@@ -1,39 +1,20 @@
 from django.contrib import admin
-# Add these imports for the date widget
-from django.db import models
-from django.contrib.admin.widgets import AdminDateWidget
 
 from authentication.admin import custom_admin_site
 from authentication.admin_mixins import CenterFilteredAdminMixin
-from .models import CenterDetail, Subscription
-
-# --- Inlines and Admin Classes ---
-class SubscriptionInline(admin.TabularInline):
-    model = Subscription
-    extra = 0
-    fields = ("plan_type", "purchase_date", "expiry_date", "days_left", "is_active")
-    
-    # CORRECTED: Removed date fields so they can be edited.
-    # 'days_left' and 'is_active' can remain read-only as they are likely calculated.
-    readonly_fields = ("days_left", "is_active")
-    
-    # ADDED: This applies the calendar widget to the date fields.
-    formfield_overrides = {
-        models.DateField: {'widget': AdminDateWidget},
-    }
+from .models import CenterDetail, SubscriptionPlan
 
 class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
-    list_display = ("center_name", "address", "owner_name", "owner_phone", "get_plan", "get_days_left")
+    list_display = ("center_name", "address", "owner_name", "owner_phone", "subscription_status", "subscription_plan")
     search_fields = ("center_name", "owner_name")
-    inlines = [SubscriptionInline]
+    list_select_related = ("subscription_plan",)
 
     def get_queryset(self, request):
         qs = super(CenterFilteredAdminMixin, self).get_queryset(request)
-        prefetch_name = 'subscriptions'
         if request.user.is_superuser:
-            return qs.prefetch_related(prefetch_name)
+            return qs.select_related("subscription_plan")
         if hasattr(request.user, 'center_detail') and request.user.center_detail:
-            return qs.filter(pk=request.user.center_detail.pk).prefetch_related(prefetch_name)
+            return qs.filter(pk=request.user.center_detail.pk).select_related("subscription_plan")
         return qs.none()
 
     # --- PERMISSION OVERRIDES ---
@@ -53,30 +34,30 @@ class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
 
-    # --- Custom display methods ---
-    def get_plan(self, obj):
-        latest_sub = obj.subscriptions.order_by('-purchase_date').first()
-        return latest_sub.plan_type if latest_sub else "No Subscription"
-    get_plan.short_description = "Current Plan"
-
-    def get_days_left(self, obj):
-        latest_sub = obj.subscriptions.order_by('-purchase_date').first()
-        return latest_sub.days_left if latest_sub else "-"
-    get_days_left.short_description = "Days Left"
-
-class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("center", "plan_type", "purchase_date", "expiry_date", "days_left", "is_active")
-    list_filter = ("plan_type", "is_active")
-    search_fields = ("center__center_name",)
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
+    def get_readonly_fields(self, request, obj=None):
         if request.user.is_superuser:
-            return qs
-        if hasattr(request.user, 'center_detail') and request.user.center_detail:
-            return qs.filter(center=request.user.center_detail)
-        return qs.none()
+            return ()
+        return ("is_active",)
+
+    def subscription_status(self, obj):
+        return obj.subscription_is_active
+
+    subscription_status.short_description = "Active"
+
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "duration_days",
+        "price_monthly",
+        "bulk_price",
+        "monthly_sms_quota",
+        "bulk_sms_quota",
+        "is_custom",
+        "is_active",
+    )
+    list_filter = ("is_custom", "is_active")
+    search_fields = ("name",)
 
 # --- Register models on the custom site ---
 custom_admin_site.register(CenterDetail, CenterDetailAdmin)
-custom_admin_site.register(Subscription, SubscriptionAdmin)
+custom_admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)

@@ -1,64 +1,95 @@
-# center_detail/models.py
-
 from django.db import models
-from datetime import timedelta, date
+from datetime import date, timedelta
+
+
+class SubscriptionPlan(models.Model):
+    """Admin-managed subscription catalog for dynamic plans."""
+    name = models.CharField(max_length=100, unique=True)
+    duration_days = models.PositiveIntegerField(default=30)
+    price_monthly = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bulk_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    monthly_sms_quota = models.PositiveIntegerField(default=0)
+    bulk_sms_quota = models.PositiveIntegerField(default=0)
+    is_custom = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
 
 class CenterDetail(models.Model):
     center_name = models.CharField(max_length=30)
     address = models.CharField(max_length=50)
     owner_name = models.CharField(max_length=30)
     owner_phone = models.CharField(max_length=15, unique=True)
+    is_active = models.BooleanField(default=True)
+    subscription_plan = models.ForeignKey(
+        SubscriptionPlan,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="centers",
+    )
+    plan_activated_on = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return self.center_name
 
     def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        if is_new:
-            # Create default FREE subscription
-            Subscription.objects.create(
-                center=self,
-                plan_type="FREE",
+        previous_plan_id = None
+        if self.pk:
+            previous_plan_id = (
+                CenterDetail.objects.filter(pk=self.pk)
+                .values_list("subscription_plan_id", flat=True)
+                .first()
             )
 
+        if not self.subscription_plan:
+            free_plan, _ = SubscriptionPlan.objects.get_or_create(
+                name="FREE",
+                defaults={
+                    "duration_days": 30,
+                    "price_monthly": 0,
+                    "bulk_price": 0,
+                    "monthly_sms_quota": 0,
+                    "bulk_sms_quota": 0,
+                    "is_custom": False,
+                    "is_active": True,
+                },
+            )
+            self.subscription_plan = free_plan
 
-class Subscription(models.Model):
-    PLAN_CHOICES = [
-        ("FREE", "Free"),
-        ("BASIC", "Basic"),
-        ("PREMIUM", "Premium"),
-    ]
+        if previous_plan_id != self.subscription_plan_id:
+            self.plan_activated_on = date.today()
+        elif self.subscription_plan_id and not self.plan_activated_on:
+            self.plan_activated_on = date.today()
 
-    center = models.ForeignKey(
-        CenterDetail,
-        on_delete=models.CASCADE,
-        related_name="subscriptions"
-    )
-    plan_type = models.CharField(max_length=20, choices=PLAN_CHOICES)
-    purchase_date = models.DateField()
-    expiry_date = models.DateField()
-    is_active = models.BooleanField(default=True)
-
-    @property
-    def days_left(self):
-        if not self.expiry_date:
-            return 0
-        remaining = (self.expiry_date - date.today()).days
-        return max(remaining, 0)
-
-    def save(self, *args, **kwargs):
-        # Default dates if not provided
-        if not self.purchase_date:
-            self.purchase_date = date.today()
-        if not self.expiry_date:
-            if self.plan_type == "PREMIUM":
-                self.expiry_date = self.purchase_date + timedelta(days=365)
-            # This covers both "FREE" and "BASIC"
-            else:
-                self.expiry_date = self.purchase_date + timedelta(days=30)
+        if self.plan_activated_on and self.subscription_plan:
+            expiry_date = self.plan_activated_on + timedelta(days=self.subscription_plan.duration_days)
+            if expiry_date <= date.today():
+                self.is_active = False
 
         super().save(*args, **kwargs)
 
-    def __str__(self):
-        return f"{self.center.center_name} - {self.plan_type}"
+    @property
+    def subscription_expiry_date(self):
+        if not self.subscription_plan or not self.plan_activated_on:
+            return None
+        return self.plan_activated_on + timedelta(days=self.subscription_plan.duration_days)
+
+    @property
+    def subscription_days_left(self):
+        expiry_date = self.subscription_expiry_date
+        if not expiry_date:
+            return 0
+        return max((expiry_date - date.today()).days, 0)
+
+    @property
+    def subscription_is_active(self):
+        if not self.is_active:
+            return False
+        if not self.subscription_plan:
+            return False
+        return self.subscription_days_left > 0

@@ -60,18 +60,8 @@ class IsSubscriptionActive(permissions.BasePermission):
             return True
 
         try:
-            # CORRECTED LINE: Access the first subscription from the collection
-            subscription = request.user.center_detail.subscriptions.first()
-
-            # Add a check to ensure a subscription actually exists
-            if not subscription:
-                return False
-
-            # The rest of the logic remains the same
-            is_active = subscription.is_active
-            days_left_positive = subscription.days_left > 0
-
-            return is_active and days_left_positive
+            center = request.user.center_detail
+            return center.subscription_is_active
 
         except AttributeError:
             # This will now correctly catch if a user has no center_detail
