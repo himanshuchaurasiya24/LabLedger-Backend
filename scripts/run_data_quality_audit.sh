@@ -11,9 +11,16 @@ fi
 
 cd "$ROOT_DIR"
 
-# Use sqlite by default for low-friction local audits.
-# Set AUDIT_USE_PROD_DB=1 to use DB_* values from the environment/.env.
-if [[ "${AUDIT_USE_PROD_DB:-0}" != "1" ]]; then
+# Load environment settings if available.
+if [[ -f "$ROOT_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
+# Use sqlite only when explicitly requested.
+if [[ "${AUDIT_USE_SQLITE:-0}" == "1" ]]; then
   export DB_ENGINE="django.db.backends.sqlite3"
   export DB_NAME="db.sqlite3"
 fi
