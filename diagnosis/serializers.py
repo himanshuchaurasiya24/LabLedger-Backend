@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from authentication.serializers import MinimalStaffAccountSerializer
 from center_detail.serializers import MinimalCenterDetailSerializer
-from .models import Bill, DiagnosisType, Doctor, FranchiseName, PatientReport, SampleTestReport, BillDiagnosisType, DiagnosisCategory, DoctorCategoryPercentage
+from .models import Bill, DiagnosisType, Doctor, FranchiseName, PatientReport, SampleTestReport, BillDiagnosisType, DiagnosisCategory, DoctorCategoryPercentage, AuditLog
 
 
 # ========================
@@ -50,6 +50,35 @@ class MinimalDoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = ['id', 'first_name', 'last_name', 'address', 'email', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage', 'others_percentage']
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    username = serializers.SerializerMethodField()
+    user_full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id',
+            'action',
+            'model_name',
+            'object_id',
+            'details',
+            'timestamp',
+            'ip_address',
+            'username',
+            'user_full_name',
+        ]
+
+    def get_username(self, obj):
+        return obj.user.username if obj.user else 'Unknown'
+
+    def get_user_full_name(self, obj):
+        if not obj.user:
+            return 'Unknown user'
+
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full_name or obj.user.username
 
 
 # --- Main Model Serializers (Refactored) ---

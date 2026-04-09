@@ -18,6 +18,7 @@ router.register(r'categories', DiagnosisCategoryViewSet, basename='category')
 
 urlpatterns = [
     path('', include(router.urls)), 
+    path('audit-logs/', CenterAuditLogListView.as_view(), name='center-audit-logs'),
     path('doctors/<int:doctor_id>/incentives/', DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
     path('doctors/<int:doctor_id>/growth-stats/', DoctorBillGrowthStatsView.as_view(), name='doctor-growth-stats'),
     path('bills/growth-stats/', BillGrowthStatsView.as_view(), name='bill-growth-stats'),

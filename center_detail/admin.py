@@ -2,19 +2,26 @@ from django.contrib import admin
 
 from authentication.admin import custom_admin_site
 from authentication.admin_mixins import CenterFilteredAdminMixin
-from .models import CenterDetail, SubscriptionPlan
+from .models import ActiveSubscription, CenterDetail, SubscriptionPlan
 
 class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
-    list_display = ("center_name", "address", "owner_name", "owner_phone", "subscription_status", "subscription_plan")
+    list_display = (
+        "center_name",
+        "address",
+        "owner_name",
+        "owner_phone",
+        "subscription_status",
+        "subscription_plan",
+    )
     search_fields = ("center_name", "owner_name")
-    list_select_related = ("subscription_plan",)
+    list_select_related = ("active_subscription__subscription_plan",)
 
     def get_queryset(self, request):
         qs = super(CenterFilteredAdminMixin, self).get_queryset(request)
         if request.user.is_superuser:
-            return qs.select_related("subscription_plan")
+            return qs.select_related("active_subscription__subscription_plan")
         if hasattr(request.user, 'center_detail') and request.user.center_detail:
-            return qs.filter(pk=request.user.center_detail.pk).select_related("subscription_plan")
+            return qs.filter(pk=request.user.center_detail.pk).select_related("active_subscription__subscription_plan")
         return qs.none()
 
     # --- PERMISSION OVERRIDES ---
@@ -44,20 +51,36 @@ class CenterDetailAdmin(CenterFilteredAdminMixin, admin.ModelAdmin):
 
     subscription_status.short_description = "Active"
 
+    def subscription_plan(self, obj):
+        plan = obj.subscription_plan
+        return plan.name if plan else "-"
+
+    subscription_plan.short_description = "Subscription Plan"
+
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "duration_days",
-        "price_monthly",
-        "bulk_price",
-        "monthly_sms_quota",
-        "bulk_sms_quota",
+        "sms_quota",
+        "server_report_storage_quota_mb",
+        "patient_report_storage_quota_mb",
         "is_custom",
-        "is_active",
     )
-    list_filter = ("is_custom", "is_active")
+    list_filter = ("is_custom",)
     search_fields = ("name",)
+
+
+class ActiveSubscriptionAdmin(admin.ModelAdmin):
+    list_display = (
+        "center_detail",
+        "subscription_plan",
+        "plan_activated_on",
+        "plan_expires_on",
+    )
+    search_fields = ("center_detail__center_name", "subscription_plan__name")
+    list_select_related = ("center_detail", "subscription_plan")
 
 # --- Register models on the custom site ---
 custom_admin_site.register(CenterDetail, CenterDetailAdmin)
 custom_admin_site.register(SubscriptionPlan, SubscriptionPlanAdmin)
+custom_admin_site.register(ActiveSubscription, ActiveSubscriptionAdmin)

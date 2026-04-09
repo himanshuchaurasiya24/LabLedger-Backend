@@ -1,26 +1,34 @@
 from rest_framework import serializers
+from datetime import date, timedelta
 
-from .models import CenterDetail, SubscriptionPlan
+from .models import ActiveSubscription, CenterDetail, SubscriptionPlan
 
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    display_price = serializers.SerializerMethodField()
+
     class Meta:
         model = SubscriptionPlan
         fields = [
             "id",
             "name",
+            "plan_index",
+            "price",
             "duration_days",
-            "price_monthly",
-            "bulk_price",
-            "monthly_sms_quota",
-            "bulk_sms_quota",
+            "sms_quota",
+            "server_report_storage_quota_mb",
+            "patient_report_storage_quota_mb",
             "is_custom",
-            "is_active",
+            "display_price",
         ]
+
+    def get_display_price(self, obj):
+        if obj.name.upper() == "FREE":
+            return "0"
+        return "Contact us"
 
 
 class CenterDetailListSerializer(serializers.ModelSerializer):
-    """Lightweight list serializer (no subscription info)."""
     is_active = serializers.BooleanField(source="subscription_is_active", read_only=True)
 
     class Meta:
@@ -28,18 +36,83 @@ class CenterDetailListSerializer(serializers.ModelSerializer):
         fields = ["id", "center_name", "address", "owner_name", "owner_phone", "is_active"]
 
 
+class ActiveSubscriptionSerializer(serializers.ModelSerializer):
+    subscription_plan = SubscriptionPlanSerializer(read_only=True)
+    center_detail_id = serializers.PrimaryKeyRelatedField(
+        source="center_detail",
+        queryset=CenterDetail.objects.all(),
+        write_only=True,
+    )
+    subscription_plan_id = serializers.PrimaryKeyRelatedField(
+        source="subscription_plan",
+        queryset=SubscriptionPlan.objects.all(),
+        write_only=True,
+    )
+
+    class Meta:
+        model = ActiveSubscription
+        fields = [
+            "id",
+            "center_detail",
+            "center_detail_id",
+            "subscription_plan",
+            "subscription_plan_id",
+            "plan_activated_on",
+            "plan_expires_on",
+        ]
+        read_only_fields = ["center_detail", "subscription_plan"]
+
+    def create(self, validated_data):
+        center = validated_data["center_detail"]
+        plan = validated_data["subscription_plan"]
+        manual_expiry_provided = "plan_expires_on" in validated_data
+
+        existing = ActiveSubscription.objects.filter(center_detail=center).first()
+
+        if not manual_expiry_provided:
+            if existing and existing.plan_expires_on:
+                base_date = max(existing.plan_expires_on, date.today())
+            else:
+                base_date = validated_data.get("plan_activated_on") or date.today()
+            validated_data["plan_expires_on"] = base_date + timedelta(
+                days=plan.duration_days
+            )
+
+        # If one already exists for the center, treat create as reassignment update.
+        if existing:
+            for key, value in validated_data.items():
+                setattr(existing, key, value)
+            existing.save()
+            return existing
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        plan = validated_data.get("subscription_plan", instance.subscription_plan)
+        manual_expiry_provided = "plan_expires_on" in validated_data
+        plan_changed = (
+            "subscription_plan" in validated_data
+            and validated_data["subscription_plan"].id != instance.subscription_plan_id
+        )
+
+        if plan_changed and not manual_expiry_provided:
+            base_date = max(instance.plan_expires_on, date.today())
+            validated_data["plan_expires_on"] = base_date + timedelta(
+                days=plan.duration_days
+            )
+        elif "plan_activated_on" in validated_data and not manual_expiry_provided:
+            validated_data["plan_expires_on"] = validated_data["plan_activated_on"] + timedelta(
+                days=plan.duration_days
+            )
+
+        return super().update(instance, validated_data)
+
+
 class CenterDetailSerializer(serializers.ModelSerializer):
-    """Detailed serializer with subscription plan."""
     is_active = serializers.BooleanField(source="subscription_is_active", read_only=True)
     active_state = serializers.BooleanField(source="is_active", write_only=True, required=False)
     subscription_plan = serializers.SerializerMethodField()
-    subscription_plan_id = serializers.PrimaryKeyRelatedField(
-        source="subscription_plan",
-        queryset=SubscriptionPlan.objects.filter(is_active=True),
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
+    active_subscription = ActiveSubscriptionSerializer(read_only=True)
 
     class Meta:
         model = CenterDetail
@@ -52,7 +125,7 @@ class CenterDetailSerializer(serializers.ModelSerializer):
             "is_active",
             "active_state",
             "subscription_plan",
-            "subscription_plan_id",
+            "active_subscription",
         ]
 
     def get_subscription_plan(self, obj):
@@ -61,12 +134,14 @@ class CenterDetailSerializer(serializers.ModelSerializer):
             return None
 
         data = SubscriptionPlanSerializer(plan).data
-        data.update({
-            "purchase_date": obj.plan_activated_on.isoformat() if obj.plan_activated_on else None,
-            "expiry_date": obj.subscription_expiry_date.isoformat() if obj.subscription_expiry_date else None,
-            "days_left": obj.subscription_days_left,
-            "is_active": obj.subscription_is_active,
-        })
+        data.update(
+            {
+                "purchase_date": obj.plan_activated_on.isoformat() if obj.plan_activated_on else None,
+                "expiry_date": obj.subscription_expiry_date.isoformat() if obj.subscription_expiry_date else None,
+                "days_left": obj.subscription_days_left,
+                "is_active": obj.subscription_is_active,
+            }
+        )
         return data
 
     def update(self, instance, validated_data):
@@ -83,13 +158,10 @@ class CenterDetailSerializer(serializers.ModelSerializer):
 
 
 class MinimalCenterDetailSerializer(serializers.ModelSerializer):
-    """
-    Lightweight serializer for dropdowns, lists, or foreign key fields.
-    Does NOT include subscription info.
-    """
     class Meta:
         model = CenterDetail
         fields = ["id", "center_name", "address"]
+
 
 class CenterDetailTokenSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(source="subscription_is_active", read_only=True)
@@ -113,10 +185,12 @@ class CenterDetailTokenSerializer(serializers.ModelSerializer):
             return None
 
         data = SubscriptionPlanSerializer(plan).data
-        data.update({
-            "purchase_date": obj.plan_activated_on.isoformat() if obj.plan_activated_on else None,
-            "expiry_date": obj.subscription_expiry_date.isoformat() if obj.subscription_expiry_date else None,
-            "days_left": obj.subscription_days_left,
-            "is_active": obj.subscription_is_active,
-        })
+        data.update(
+            {
+                "purchase_date": obj.plan_activated_on.isoformat() if obj.plan_activated_on else None,
+                "expiry_date": obj.subscription_expiry_date.isoformat() if obj.subscription_expiry_date else None,
+                "days_left": obj.subscription_days_left,
+                "is_active": obj.subscription_is_active,
+            }
+        )
         return data

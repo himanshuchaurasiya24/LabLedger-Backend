@@ -29,6 +29,23 @@ class SubscriptionSuperUserOnly(permissions.BasePermission):
         return request.user.is_superuser
 
 
+class SubscriptionPlanPermission(permissions.BasePermission):
+    """
+    Authenticated users can read plans.
+    Only superusers can create/update/delete plans.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if view.action in ["list", "retrieve"]:
+            return True
+        return request.user.is_superuser
+
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)
+
+
 class IsUserNotLocked(permissions.BasePermission):
     """
     Custom permission to only allow users that are not locked.

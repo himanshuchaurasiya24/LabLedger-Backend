@@ -5,7 +5,7 @@ from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Concat, TruncDate
 from django.utils.timezone import now, make_aware, get_default_timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import SearchFilter
@@ -954,3 +954,29 @@ class DiagnosisCategoryViewSet(viewsets.ModelViewSet):
             details=f"Deleted diagnosis category {category_name}",
             request=self.request,
         )
+
+
+class CenterAuditLogListView(generics.ListAPIView):
+    """
+    Returns all audit logs for the authenticated admin user's center.
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [
+        permissions.IsAuthenticated,
+        IsUserNotLocked,
+        IsSubscriptionActive,
+        IsAdminUser,
+    ]
+    serializer_class = AuditLogSerializer
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        request = self.request
+        user_center = getattr(request.user, 'center_detail', None)
+        if user_center is None:
+            raise PermissionDenied('You do not have an associated center.')
+
+        return AuditLog.objects.filter(
+            user__center_detail=user_center,
+        ).select_related('user').order_by('-timestamp')
