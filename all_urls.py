@@ -41,6 +41,7 @@ DIAG_PENDING_REPORTS_ROUTER = "pending-reports"
 DIAG_CATEGORIES_ROUTER = "categories"
 
 DIAG_AUDIT_LOGS = "audit-logs/"
+DIAG_REPORT_QUOTA_SUMMARY = "report-quota-summary/"
 DIAG_DOCTOR_INCENTIVES = "doctors/<int:doctor_id>/incentives/"
 DIAG_DOCTOR_GROWTH_STATS = "doctors/<int:doctor_id>/growth-stats/"
 DIAG_BILLS_GROWTH_STATS = "bills/growth-stats/"
@@ -54,6 +55,7 @@ API_DIAGNOSIS_BILL = "/diagnosis/bill/"
 API_DIAGNOSIS_BILL_GROWTH_STATS = "/diagnosis/bills/growth-stats/"
 API_DIAGNOSIS_INCENTIVES = "/diagnosis/incentives/"
 API_DIAGNOSIS_REFERRAL_STAT = "/diagnosis/referral-stat/"
+API_DIAGNOSIS_REPORT_QUOTA_SUMMARY = "/diagnosis/report-quota-summary/"
 
 
 def api_center_detail_by_id(center_id: int) -> str:

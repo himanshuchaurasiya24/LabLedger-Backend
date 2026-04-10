@@ -509,6 +509,19 @@ class PatientReportSerializer(serializers.ModelSerializer):
             user_center = request.user.center_detail
             self.fields['bill'].queryset = Bill.objects.filter(center_detail=user_center)
 
+    def validate_report_file(self, value):
+        file_size_limit = 5 * 1024 * 1024  # 5 MB
+        allowed_formats = ('.pdf', '.doc', '.docx', '.odt', '.jpg', '.jpeg', '.png')
+        if value.size > file_size_limit:
+            raise serializers.ValidationError("File size cannot exceed 5 MB.")
+
+        file_extension = os.path.splitext(value.name)[1].lower()
+        if file_extension not in allowed_formats:
+            raise serializers.ValidationError(
+                f"Invalid file format. Allowed formats: {', '.join(allowed_formats)}."
+            )
+        return value
+
 class SampleTestReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = SampleTestReport
@@ -519,14 +532,14 @@ class SampleTestReportSerializer(serializers.ModelSerializer):
         Custom validation for the uploaded file.
         This is the correct place for validation in DRF.
         """
-        file_size_limit = 8 * 1024 * 1024  # 8 MB
-        allowed_formats = ('.doc', '.docx', '.rtf')
+        file_size_limit = 5 * 1024 * 1024  # 5 MB
+        allowed_formats = ('.doc', '.docx', '.rtf', '.odt')
         if value.size > file_size_limit:
-            raise serializers.ValidationError(f"File size cannot exceed 8 MB.")
+            raise serializers.ValidationError("File size cannot exceed 5 MB.")
         
         file_extension = os.path.splitext(value.name)[1].lower()
         if file_extension not in allowed_formats:
             raise serializers.ValidationError(
-                f"Invalid file format. Only Word documents ({', '.join(allowed_formats)}) are allowed."
+                f"Invalid file format. Only Word/LibreOffice documents ({', '.join(allowed_formats)}) are allowed."
             )
         return value

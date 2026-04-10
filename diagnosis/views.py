@@ -7,7 +7,7 @@ from django.utils.timezone import now, make_aware, get_default_timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, generics
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,6 +18,128 @@ from .serializers import *
 from .filters import *
 from .pagination import StandardResultsSetPagination
 from .models import AuditLog
+
+MB_BYTES = 1024 * 1024
+
+
+def _file_size_bytes(file_field):
+    if not file_field:
+        return 0
+
+    try:
+        return int(file_field.size)
+    except Exception:
+        return 0
+
+
+def _queryset_file_usage_bytes(queryset, field_name):
+    total = 0
+    for instance in queryset:
+        total += _file_size_bytes(getattr(instance, field_name, None))
+    return total
+
+
+def _center_report_usage_bytes(center_detail):
+    patient_reports = PatientReport.objects.filter(center_detail=center_detail)
+    sample_reports = SampleTestReport.objects.filter(center_detail=center_detail)
+    return {
+        "patient": _queryset_file_usage_bytes(patient_reports, "report_file"),
+        "server": _queryset_file_usage_bytes(sample_reports, "sample_report_file"),
+    }
+
+
+def _mb_value(byte_value):
+    return round(byte_value / MB_BYTES, 2)
+
+
+def _quota_payload(label, used_bytes, quota_mb):
+    quota_bytes = int(quota_mb or 0) * MB_BYTES
+    used_mb = _mb_value(used_bytes)
+    remaining_bytes = max(quota_bytes - used_bytes, 0)
+    remaining_mb = _mb_value(remaining_bytes)
+    usage_percent = 0
+    if quota_bytes > 0:
+        usage_percent = min(round((used_bytes / quota_bytes) * 100, 2), 100)
+    elif used_bytes > 0:
+        usage_percent = 100
+
+    return {
+        "label": label,
+        "used_bytes": used_bytes,
+        "used_mb": used_mb,
+        "quota_mb": int(quota_mb or 0),
+        "quota_bytes": quota_bytes,
+        "remaining_bytes": remaining_bytes,
+        "remaining_mb": remaining_mb,
+        "usage_percent": usage_percent,
+    }
+
+
+def _patient_report_projected_usage_bytes(center_detail, serializer):
+    usage = _center_report_usage_bytes(center_detail)
+    projected = usage["patient"]
+
+    instance = getattr(serializer, "instance", None)
+    target_bill = serializer.validated_data.get("bill")
+    if target_bill is None and instance is not None:
+        target_bill = instance.bill
+
+    new_report_file = serializer.validated_data.get("report_file")
+
+    if new_report_file and instance and instance.report_file:
+        projected -= _file_size_bytes(instance.report_file)
+
+    if target_bill is not None:
+        existing_reports = PatientReport.objects.filter(
+            center_detail=center_detail,
+            bill=target_bill,
+        )
+        if instance and instance.pk:
+            existing_reports = existing_reports.exclude(pk=instance.pk)
+        projected -= _queryset_file_usage_bytes(existing_reports, "report_file")
+
+    if new_report_file:
+        projected += _file_size_bytes(new_report_file)
+
+    return projected
+
+
+def _sample_report_projected_usage_bytes(center_detail, serializer):
+    usage = _center_report_usage_bytes(center_detail)
+    projected = usage["server"]
+
+    instance = getattr(serializer, "instance", None)
+    new_report_file = serializer.validated_data.get("sample_report_file")
+
+    if new_report_file and instance and instance.sample_report_file:
+        projected -= _file_size_bytes(instance.sample_report_file)
+
+    if new_report_file:
+        projected += _file_size_bytes(new_report_file)
+
+    return projected
+
+
+def _get_plan_for_center(center_detail):
+    plan = center_detail.subscription_plan
+    if plan:
+        return plan
+    return get_free_plan()
+
+
+def _enforce_quota(limit_mb, projected_bytes, limit_label):
+    limit_bytes = int(limit_mb or 0) * MB_BYTES
+    if limit_bytes <= 0 and projected_bytes > 0:
+        raise DRFValidationError({
+            limit_label: f"Your current plan does not include {limit_label.replace('_', ' ')}.",
+        })
+    if limit_bytes > 0 and projected_bytes > limit_bytes:
+        raise DRFValidationError({
+            limit_label: (
+                f"{limit_label.replace('_', ' ').capitalize()} quota exceeded. "
+                f"Please delete older reports or upgrade your plan."
+            ),
+        })
 
 
 def audit_log(user, action, model_name, object_id='', details='', request=None):
@@ -380,6 +502,14 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Assigns the center_detail automatically during creation."""
+        center_detail = self.request.user.center_detail
+        projected_usage = _patient_report_projected_usage_bytes(center_detail, serializer)
+        plan = _get_plan_for_center(center_detail)
+        _enforce_quota(
+            plan.patient_report_storage_quota_mb,
+            projected_usage,
+            "patient_report_storage_quota_mb",
+        )
         instance = serializer.save(center_detail=self.request.user.center_detail)
         _safe_audit_log(
             user=self.request.user,
@@ -399,6 +529,14 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         """Assigns the center_detail automatically during an update."""
+        center_detail = self.request.user.center_detail
+        projected_usage = _patient_report_projected_usage_bytes(center_detail, serializer)
+        plan = _get_plan_for_center(center_detail)
+        _enforce_quota(
+            plan.patient_report_storage_quota_mb,
+            projected_usage,
+            "patient_report_storage_quota_mb",
+        )
         instance = serializer.save(center_detail=self.request.user.center_detail)
         _safe_audit_log(
             user=self.request.user,
@@ -444,6 +582,14 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return super().get_queryset().order_by('-id')
     
     def perform_create(self, serializer):
+        center_detail = self.request_detail
+        projected_usage = _sample_report_projected_usage_bytes(center_detail, serializer)
+        plan = _get_plan_for_center(center_detail)
+        _enforce_quota(
+            plan.server_report_storage_quota_mb,
+            projected_usage,
+            "server_report_storage_quota_mb",
+        )
         instance = serializer.save(center_detail=self.request_detail)
         _safe_audit_log(
             user=self.request.user,
@@ -462,6 +608,14 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_update(self, serializer):
+        center_detail = self.request_detail
+        projected_usage = _sample_report_projected_usage_bytes(center_detail, serializer)
+        plan = _get_plan_for_center(center_detail)
+        _enforce_quota(
+            plan.server_report_storage_quota_mb,
+            projected_usage,
+            "server_report_storage_quota_mb",
+        )
         instance = serializer.save(center_detail=self.request_detail)
         _safe_audit_log(
             user=self.request.user,
@@ -704,6 +858,41 @@ class BillGrowthStatsView(APIView):
             "previous_quarter": self.aggregate(self.get_filtered_queryset(first_prev_quarter, last_prev_quarter, base_qs)),
         }
         return Response(data)
+
+
+class ReportQuotaSummaryView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated, IsUserNotLocked]
+
+    def get(self, request, format=None):
+        center_detail = getattr(request.user, "center_detail", None)
+        if center_detail is None:
+            return Response(
+                {"detail": "No center is linked with this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        plan = _get_plan_for_center(center_detail)
+        usage = _center_report_usage_bytes(center_detail)
+
+        return Response({
+            "plan": {
+                "id": plan.id,
+                "name": plan.name,
+                "plan_index": plan.plan_index,
+                "is_custom": plan.is_custom,
+            },
+            "server_report": _quota_payload(
+                "server_report",
+                usage["server"],
+                plan.server_report_storage_quota_mb,
+            ),
+            "patient_report": _quota_payload(
+                "patient_report",
+                usage["patient"],
+                plan.patient_report_storage_quota_mb,
+            ),
+        })
 
 class DoctorIncentiveStatsView(APIView):
     authentication_classes = [JWTAuthentication]

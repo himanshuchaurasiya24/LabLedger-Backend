@@ -13,6 +13,7 @@ from all_urls import (
     DIAG_DOCTOR_ROUTER,
     DIAG_FRANCHISE_NAME_ROUTER,
     DIAG_INCENTIVES,
+    DIAG_REPORT_QUOTA_SUMMARY,
     DIAG_PATIENT_REPORT_ROUTER,
     DIAG_PENDING_REPORTS_ROUTER,
     DIAG_REFERRAL_STAT_ROUTER,
@@ -36,6 +37,7 @@ router.register(DIAG_CATEGORIES_ROUTER, DiagnosisCategoryViewSet, basename='cate
 urlpatterns = [
     path('', include(router.urls)), 
     path(DIAG_AUDIT_LOGS, CenterAuditLogListView.as_view(), name='center-audit-logs'),
+    path(DIAG_REPORT_QUOTA_SUMMARY, ReportQuotaSummaryView.as_view(), name='report-quota-summary'),
     path(DIAG_DOCTOR_INCENTIVES, DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),
     path(DIAG_DOCTOR_GROWTH_STATS, DoctorBillGrowthStatsView.as_view(), name='doctor-growth-stats'),
     path(DIAG_BILLS_GROWTH_STATS, BillGrowthStatsView.as_view(), name='bill-growth-stats'),
