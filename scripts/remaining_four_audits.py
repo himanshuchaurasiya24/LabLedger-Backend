@@ -25,6 +25,16 @@ ENV_PATH = BASE_DIR / ".env"
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+from all_urls import (
+    API_DIAGNOSIS_BILL,
+    API_DIAGNOSIS_BILL_GROWTH_STATS,
+    API_DIAGNOSIS_INCENTIVES,
+    API_DIAGNOSIS_REFERRAL_STAT,
+    API_TOKEN,
+    api_bill_by_id,
+    api_doctor_incentives,
+)
+
 
 def load_env_file(path: Path) -> None:
     if not path.exists():
@@ -95,7 +105,7 @@ def run_checks() -> list[CheckResult]:
         c = APIClient()
         c.raise_request_exception = False
         token_resp = c.post(
-            "/api/token/",
+            API_TOKEN,
             {"username": username, "password": password},
             format="json",
             secure=True,
@@ -160,7 +170,7 @@ def run_checks() -> list[CheckResult]:
                 "disc_by_center": 0,
                 "disc_by_doctor": 100 - paid,
             }
-            r = c.patch(f"/diagnosis/bill/{bill.id}/", payload, format="json", secure=True)
+            r = c.patch(api_bill_by_id(bill.id), payload, format="json", secure=True)
             return r.status_code
 
         statuses = []
@@ -203,12 +213,12 @@ def run_checks() -> list[CheckResult]:
         start_date = date.today().replace(day=1).isoformat()
         end_date = date.today().isoformat()
 
-        d_resp = client.get(f"/diagnosis/doctors/{doctor.id}/incentives/", secure=True)
+        d_resp = client.get(api_doctor_incentives(doctor.id), secure=True)
         f_resp = client.get(
-            f"/diagnosis/incentives/?doctor_id={doctor.id}&bill_status=Fully%20Paid&start_date={start_date}&end_date={end_date}",
+            f"{API_DIAGNOSIS_INCENTIVES}?doctor_id={doctor.id}&bill_status=Fully%20Paid&start_date={start_date}&end_date={end_date}",
             secure=True,
         )
-        r_resp = client.get(f"/diagnosis/referral-stat/?referred_by_doctor={doctor.id}", secure=True)
+        r_resp = client.get(f"{API_DIAGNOSIS_REFERRAL_STAT}?referred_by_doctor={doctor.id}", secure=True)
 
         d_total = ((d_resp.data or {}).get("current_month") or {}).get("total_incentive", 0) if d_resp.status_code == 200 else None
         f_total = 0
@@ -227,9 +237,9 @@ def run_checks() -> list[CheckResult]:
 
         # Audit 3: Performance smoke test on larger dataset
         t0 = time.perf_counter()
-        list_resp = client.get("/diagnosis/bill/?page=1&page_size=50", secure=True)
+        list_resp = client.get(f"{API_DIAGNOSIS_BILL}?page=1&page_size=50", secure=True)
         t1 = time.perf_counter()
-        growth_resp = client.get("/diagnosis/bills/growth-stats/", secure=True)
+        growth_resp = client.get(API_DIAGNOSIS_BILL_GROWTH_STATS, secure=True)
         t2 = time.perf_counter()
         perf_ok = (
             list_resp.status_code == 200
@@ -244,7 +254,7 @@ def run_checks() -> list[CheckResult]:
         )
 
         # Audit 4: report-data correctness for snapshot payload shape
-        one_bill = client.get(f"/diagnosis/bill/{bill.id}/", secure=True)
+        one_bill = client.get(api_bill_by_id(bill.id), secure=True)
         snapshot_ok = False
         details = "invalid"
         if one_bill.status_code == 200 and one_bill.data.get("diagnosis_types_output"):

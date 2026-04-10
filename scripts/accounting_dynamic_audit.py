@@ -26,6 +26,14 @@ ENV_PATH = BASE_DIR / ".env"
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+from all_urls import (
+    API_DIAGNOSIS_BILL,
+    API_DIAGNOSIS_INCENTIVES,
+    API_DIAGNOSIS_REFERRAL_STAT,
+    API_TOKEN,
+    api_doctor_incentives,
+)
+
 
 def load_env_file(path: Path) -> None:
     if not path.exists():
@@ -207,7 +215,7 @@ def run_checks() -> list[CheckResult]:
 
         token_resp = request(
             "post",
-            "/api/token/",
+            API_TOKEN,
             data={"username": user.username, "password": "Passw0rd!23"},
             format="json",
         )
@@ -222,7 +230,7 @@ def run_checks() -> list[CheckResult]:
         # 1) Doctor incentives endpoint stability with diagnosis_type filter
         r = request(
             "get",
-            f"/diagnosis/doctors/{doctor.id}/incentives/?diagnosis_type_id={dt1.id}",
+            f"{api_doctor_incentives(doctor.id)}?diagnosis_type_id={dt1.id}",
         )
         record(
             "doctor_incentives_filter_no_500",
@@ -240,7 +248,7 @@ def run_checks() -> list[CheckResult]:
         )
 
         # 3) Referral stats sum must include duplicate-valued incentives exactly
-        rr = request("get", f"/diagnosis/referral-stat/?referred_by_doctor={doctor.id}")
+        rr = request("get", f"{API_DIAGNOSIS_REFERRAL_STAT}?referred_by_doctor={doctor.id}")
         expected_sum = (b1.incentive_amount or 0) + (b2.incentive_amount or 0) + (b3.incentive_amount or 0)
         actual_sum = None
         if rr.status_code == 200 and rr.data.get("this_month"):
@@ -255,8 +263,7 @@ def run_checks() -> list[CheckResult]:
         start_date = date.today().replace(day=1).isoformat()
         end_date = date.today().isoformat()
         path = (
-            "/diagnosis/incentives/"
-            f"?doctor_id={doctor.id}"
+            f"{API_DIAGNOSIS_INCENTIVES}?doctor_id={doctor.id}"
             f"&diagnosis_type_id={dt1.id}&diagnosis_type_id={dt2.id}"
             "&bill_status=Fully%20Paid"
             f"&start_date={start_date}&end_date={end_date}"
@@ -294,7 +301,7 @@ def run_checks() -> list[CheckResult]:
             "diagnosis_types": [dt1.id],
             "referred_by_doctor": doctor.id,
         }
-        br = request("post", "/diagnosis/bill/", data=bad_payload, format="json")
+        br = request("post", API_DIAGNOSIS_BILL, data=bad_payload, format="json")
         record(
             "negative_financial_input_rejected",
             br.status_code in (400, 422),

@@ -22,6 +22,8 @@ ENV_PATH = BASE_DIR / ".env"
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+from all_urls import API_TOKEN, api_bill_by_id
+
 
 def load_env_file(path: Path) -> None:
     if not path.exists():
@@ -160,14 +162,14 @@ def run_checks() -> list[CheckResult]:
         # API response should include price_at_time and keep total stable
         token = request(
             "post",
-            "/api/token/",
+            API_TOKEN,
             data={"username": user.username, "password": "Passw0rd!23"},
             format="json",
         )
         access = token.data["access"]
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
-        r = request("get", f"/diagnosis/bill/{bill.id}/")
+        r = request("get", api_bill_by_id(bill.id))
         price_at_time = None
         if r.status_code == 200 and r.data.get("diagnosis_types_output"):
             price_at_time = r.data["diagnosis_types_output"][0].get("price_at_time")
@@ -185,7 +187,7 @@ def run_checks() -> list[CheckResult]:
             "disc_by_doctor": bill.disc_by_doctor,
             "bill_status": bill.bill_status,
         }
-        ur = request("patch", f"/diagnosis/bill/{bill.id}/", data=update_payload, format="json")
+        ur = request("patch", api_bill_by_id(bill.id), data=update_payload, format="json")
         bill.refresh_from_db()
         bdt.refresh_from_db()
         record(

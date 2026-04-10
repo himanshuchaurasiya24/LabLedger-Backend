@@ -26,6 +26,14 @@ ENV_PATH = BASE_DIR / ".env"
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+from all_urls import (
+    API_AUTH_STAFFS,
+    API_DIAGNOSIS_BILL,
+    API_TOKEN,
+    API_TOKEN_REFRESH,
+    api_center_detail_by_id,
+)
+
 
 def load_env_file(path: Path) -> None:
     """Load .env without requiring shell `source`.
@@ -149,7 +157,7 @@ def run_checks() -> list[CheckResult]:
 
         token_resp = request(
             "post",
-            "/api/token/",
+            API_TOKEN,
             data={"username": u1.username, "password": "Passw0rd!23"},
             format="json",
         )
@@ -165,7 +173,7 @@ def run_checks() -> list[CheckResult]:
             )
             return results
 
-        r = request("get", f"/center-details/center-detail/{c2.id}/")
+        r = request("get", api_center_detail_by_id(c2.id))
         record(
             "cross_tenant_center_access_blocked",
             r.status_code in (403, 404),
@@ -183,7 +191,7 @@ def run_checks() -> list[CheckResult]:
             "password": "StrongPass!23",
             "is_admin": True,
         }
-        r = request("post", "/auth/staffs/staff/", data=create_payload, format="json")
+        r = request("post", API_AUTH_STAFFS, data=create_payload, format="json")
         if r.status_code == 201:
             created = User.objects.get(username=new_username)
             created_users.append(created)
@@ -205,7 +213,7 @@ def run_checks() -> list[CheckResult]:
 
         r = client.generic(
             "POST",
-            "/api/token/",
+            API_TOKEN,
             data='{"username":',
             content_type="application/json",
             secure=True,
@@ -215,7 +223,7 @@ def run_checks() -> list[CheckResult]:
         huge_user = "A" * 20000
         r = request(
             "post",
-            "/api/token/",
+            API_TOKEN,
             data={"username": huge_user, "password": "x"},
             format="json",
         )
@@ -223,7 +231,7 @@ def run_checks() -> list[CheckResult]:
 
         r = request(
             "post",
-            "/api/token/",
+            API_TOKEN,
             data={"username": "' OR 1=1 --", "password": "x"},
             format="json",
         )
@@ -235,14 +243,14 @@ def run_checks() -> list[CheckResult]:
 
         r = request(
             "post",
-            "/api/token/refresh/",
+            API_TOKEN_REFRESH,
             data={"refresh": "x" * 4096},
             format="json",
         )
         record("fuzz_invalid_refresh_no_500", r.status_code != 500, f"status={r.status_code}")
 
         # Authenticated endpoint fuzz smoke test (regression for search-field crash).
-        r = request("get", "/diagnosis/bill/?search=" + ("X" * 12000))
+        r = request("get", f"{API_DIAGNOSIS_BILL}?search=" + ("X" * 12000))
         record("fuzz_endpoint_search_no_500", r.status_code != 500, f"status={r.status_code}")
 
     finally:
