@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_BIN="$ROOT_DIR/venv/bin/python"
+VENV_DIR="$ROOT_DIR/venv"
 ENV_FILE="$ROOT_DIR/.env"
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -10,12 +11,27 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+cd "$ROOT_DIR"
+
 if [[ ! -x "$PYTHON_BIN" ]]; then
-  echo "error: expected virtualenv python at $PYTHON_BIN" >&2
-  exit 2
+  echo "Creating virtual environment in $VENV_DIR ..."
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -m venv "$VENV_DIR"
+  elif command -v python >/dev/null 2>&1; then
+    python -m venv "$VENV_DIR"
+  else
+    echo "error: python/python3 is not installed" >&2
+    exit 2
+  fi
 fi
 
-cd "$ROOT_DIR"
+echo "Installing/upgrading Python dependencies..."
+"$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
+if ! "$PYTHON_BIN" -m pip install -r requirements.txt; then
+  echo "First dependency install attempt failed. Retrying once..."
+  "$PYTHON_BIN" -m pip cache purge || true
+  "$PYTHON_BIN" -m pip install -r requirements.txt
+fi
 
 set -a
 # shellcheck disable=SC1090

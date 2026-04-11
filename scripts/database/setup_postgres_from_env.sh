@@ -7,10 +7,36 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 
+DEFAULT_DB_ENGINE="django.db.backends.postgresql"
+DEFAULT_DB_NAME="labledger"
+DEFAULT_DB_USER="labledger_user"
+DEFAULT_DB_PASSWORD="RandomPasswordForLabLedgerPostgreSQL"
+DEFAULT_DB_HOST="localhost"
+DEFAULT_DB_PORT="5432"
+
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "Missing .env file at ${ENV_FILE}" >&2
   exit 1
 fi
+
+ensure_env_key() {
+  local key="$1"
+  local default_value="$2"
+
+  if grep -Eq "^[[:space:]]*${key}=" "${ENV_FILE}"; then
+    return 0
+  fi
+
+  echo "${key}=${default_value}" >> "${ENV_FILE}"
+  echo "Added missing ${key} to .env"
+}
+
+ensure_env_key "DB_ENGINE" "${DEFAULT_DB_ENGINE}"
+ensure_env_key "DB_NAME" "${DEFAULT_DB_NAME}"
+ensure_env_key "DB_USER" "${DEFAULT_DB_USER}"
+ensure_env_key "DB_PASSWORD" "${DEFAULT_DB_PASSWORD}"
+ensure_env_key "DB_HOST" "${DEFAULT_DB_HOST}"
+ensure_env_key "DB_PORT" "${DEFAULT_DB_PORT}"
 
 set -a
 # shellcheck disable=SC1090
@@ -47,8 +73,14 @@ is_local_host() {
 require_env DB_NAME
 require_env DB_USER
 require_env DB_PASSWORD
+DB_ENGINE="${DB_ENGINE:-${DEFAULT_DB_ENGINE}}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
+
+if [[ "${DB_ENGINE}" != *postgresql* ]]; then
+  echo "DB_ENGINE must target PostgreSQL. Found: ${DB_ENGINE}" >&2
+  exit 1
+fi
 
 if ! command -v psql >/dev/null 2>&1; then
   echo "psql not found. Installing PostgreSQL..."
@@ -105,4 +137,7 @@ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"
 echo "Testing app credentials from .env..."
 PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT current_database(), current_user;"
 
-echo "PostgreSQL setup complete for database ${DB_NAME} and user ${DB_USER}."
+echo "Resetting primary key sequences..."
+"${ROOT_DIR}/scripts/reset_pk_sequences.sh"
+
+echo "PostgreSQL setup successful for database ${DB_NAME} and user ${DB_USER}."

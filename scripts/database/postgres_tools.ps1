@@ -52,6 +52,99 @@ function Read-EnvFile {
     return $map
 }
 
+function Ensure-EnvDefaults {
+    param([string]$Path)
+
+    $defaults = [ordered]@{
+        DB_ENGINE = "django.db.backends.postgresql"
+        DB_NAME = "labledger"
+        DB_USER = "labledger_user"
+        DB_PASSWORD = "RandomPasswordForLabLedgerPostgreSQL"
+        DB_HOST = "localhost"
+        DB_PORT = "5432"
+    }
+
+    if (-not (Test-Path -Path $Path)) {
+        throw "Env file not found: $Path"
+    }
+
+    $lines = Get-Content -Path $Path
+    $updated = $false
+
+    foreach ($key in $defaults.Keys) {
+        $escaped = [regex]::Escape($key)
+        $exists = $false
+        foreach ($line in $lines) {
+            if ($line -match "^\s*$escaped=") {
+                $exists = $true
+                break
+            }
+        }
+
+        if (-not $exists) {
+            $lines += "$key=$($defaults[$key])"
+            $updated = $true
+            Write-Host "Added missing $key to .env" -ForegroundColor Yellow
+        }
+    }
+
+    if ($updated) {
+        Set-Content -Path $Path -Value $lines
+    }
+}
+
+function Refresh-PostgresPath {
+    $possibleBins = @(
+        "C:\Program Files\PostgreSQL\17\bin",
+        "C:\Program Files\PostgreSQL\16\bin",
+        "C:\Program Files\PostgreSQL\15\bin",
+        "C:\Program Files\PostgreSQL\14\bin"
+    )
+
+    foreach ($bin in $possibleBins) {
+        if (Test-Path $bin) {
+            if ($env:Path -notlike "*$bin*") {
+                $env:Path = "$bin;$env:Path"
+            }
+            break
+        }
+    }
+}
+
+function Ensure-PostgresTools {
+    if (Get-Command psql -ErrorAction SilentlyContinue) {
+        return
+    }
+
+    Write-Step "PostgreSQL tools not found. Attempting installation"
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            & winget install --id PostgreSQL.PostgreSQL.17 -e --accept-source-agreements --accept-package-agreements
+        }
+        catch {
+            Write-Host "winget install attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+        try {
+            & choco install postgresql --yes
+        }
+        catch {
+            Write-Host "choco install attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        throw "psql is not installed, and neither winget nor choco is available for automatic installation."
+    }
+
+    Refresh-PostgresPath
+
+    if (-not (Get-Command psql -ErrorAction SilentlyContinue)) {
+        throw "psql still not found after installation attempt. Install PostgreSQL manually and rerun."
+    }
+}
+
 function Require-Command {
     param([string]$Name)
     $cmd = Get-Command $Name -ErrorAction SilentlyContinue
@@ -116,6 +209,7 @@ function SqlIdentifier {
     return '"' + $Value.Replace('"', '""') + '"'
 }
 
+Ensure-EnvDefaults -Path $EnvFile
 $envMap = Read-EnvFile -Path $EnvFile
 
 $dbEngine = Get-Value -Map $envMap -Key "DB_ENGINE" -Default "django.db.backends.postgresql" -Required $false
@@ -128,6 +222,8 @@ $dbPort = [int](Get-Value -Map $envMap -Key "DB_PORT" -Default "5432" -Required 
 if ($dbEngine -notlike "*postgresql*") {
     throw "DB_ENGINE from .env is not PostgreSQL: $dbEngine"
 }
+
+Ensure-PostgresTools
 
 $psql = Require-Command -Name "psql"
 $pgDump = Require-Command -Name "pg_dump"
@@ -180,6 +276,13 @@ $$;
 
         Write-Step "Verifying app credentials from .env"
         Run-Command -Exe $psql -Args @("-h", $dbHost, "-p", "$dbPort", "-U", $dbUser, "-d", $dbName, "-tAc", "SELECT current_database(), current_user;") -ExtraEnv @{ PGPASSWORD = $dbPassword }
+
+        Write-Step "Resetting primary key sequences"
+        $resetScript = Join-Path $repoRoot "scripts/reset_pk_sequences.ps1"
+        & powershell -ExecutionPolicy Bypass -File $resetScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "Primary key sequence reset script failed."
+        }
 
         Write-Host "Setup completed successfully." -ForegroundColor Green
     }
