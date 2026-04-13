@@ -55,9 +55,13 @@ def fallback_active_subscriptions_before_plan_delete(sender, instance, **kwargs)
 	If FREE itself is deleted, rotate FREE first, then remap.
 	"""
 	if instance.name == "FREE":
-		# Temporarily rename the plan being deleted so a replacement FREE can be created.
+		# Temporarily rename the plan being deleted and free up plan_index=0
+		# so a replacement FREE plan can be created without unique constraint errors.
 		temp_name = f"FREE__DELETING__{instance.pk}"
-		SubscriptionPlan.objects.filter(pk=instance.pk).update(name=temp_name)
+		SubscriptionPlan.objects.filter(pk=instance.pk).update(
+			name=temp_name,
+			plan_index=999000 + instance.pk
+		)
 
 	replacement_free = get_free_plan()
 	ActiveSubscription.objects.filter(subscription_plan_id=instance.pk).update(
