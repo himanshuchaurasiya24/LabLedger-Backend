@@ -304,8 +304,7 @@ if [ "$choice" = "1" ]; then
     info "Size : ${size_mb} MB"
     info "Path : $EXPORTS_DIR"
 
-    # Reset sequences after export too, to keep behavior consistent across scripts.
-    reset_sequences
+    # (removed post-export sequence reset — sequences are reset after imports/setup only)
 
 # ===========================================================================
 # IMPORT
@@ -501,7 +500,7 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" > /dev/null || true
         ok "Merge completed. Staging database removed."
     fi
 
-    # Reset sequences (both import modes)
+    # Reset sequences (import modes and setup)
     reset_sequences
 
 else

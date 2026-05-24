@@ -313,8 +313,7 @@ if ($choice -eq '1') {
     Write-Info "Size : $sizeMb MB"
     Write-Info "Path : $ExportsDir"
 
-    # Reset sequences after export too, for consistent behavior.
-    Reset-Sequences
+    # (removed post-export sequence reset — sequences are reset after imports/setup only)
 }
 
 # ===========================================================================
