@@ -67,13 +67,12 @@ ok "PostgreSQL found: $PSQL_BIN"
 # ---------------------------------------------------------------------------
 step "STEP 2 -- Loading environment variables from .env"
 
-DEFAULT_ENV='DJANGO_SECRET_KEY=LL2026SecKeyA9F3K8M1PX6RT2VW4XY7ZB0CD5EH9JK3MN8PR1SU4WX7EZ2
+DEFAULT_ENV='DJANGO_SECRET_KEY=change-this-secret-key-before-production
 DEBUG=False
 ALLOWED_HOSTS=127.0.0.1,localhost
-CORS_ALLOWED_ORIGINS=https://localhost
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1
 CORS_ALLOW_CREDENTIALS=False
-USE_HTTPS=True
-APP_MODE=development
+USE_HTTPS=False
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=labledger
 DB_USER=labledger_user
@@ -127,26 +126,43 @@ ok "PostgreSQL server is running."
 # ---------------------------------------------------------------------------
 step "STEP 4 -- Authenticate as postgres superuser"
 echo ""
-echo -e "  ${YELLOW}Enter the 'postgres' superuser password (set during installation).${NC}"
-echo ""
 
+SUPER_AUTH_MODE=""
 PG_SUPER_PASSWORD=""
-for attempt in 1 2 3; do
-    # Read password without echo
-    read -r -s -p "  Password (attempt $attempt/3): " PG_SUPER_PASSWORD_TRY
-    echo ""
-    export PGPASSWORD="$PG_SUPER_PASSWORD_TRY"
-    if psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -d postgres -tAc "SELECT 1;" &>/dev/null; then
-        PG_SUPER_PASSWORD="$PG_SUPER_PASSWORD_TRY"
-        ok "Password accepted."
-        break
-    else
-        remaining=$((3 - attempt))
-        warn "Wrong password. $remaining attempt(s) remaining."
-    fi
-done
 
-if [ -z "$PG_SUPER_PASSWORD" ]; then
+# First preference: run as OS postgres user (works with peer auth on many Linux setups)
+if [ -n "${POSTGRES_SUPER_PASSWORD:-}" ] && \
+   PGPASSWORD="$POSTGRES_SUPER_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+   -U postgres -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="password"
+    PG_SUPER_PASSWORD="$POSTGRES_SUPER_PASSWORD"
+    ok "Authenticated via POSTGRES_SUPER_PASSWORD environment variable."
+elif sudo -n -u postgres psql -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="sudo"
+    ok "Authenticated via OS postgres user (sudo, non-interactive)."
+elif sudo -u postgres psql -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="sudo"
+    ok "Authenticated via OS postgres user (sudo)."
+else
+    echo -e "  ${YELLOW}Sudo/peer auth unavailable. Enter the 'postgres' DB superuser password.${NC}"
+    echo ""
+    for attempt in 1 2 3; do
+        read -r -s -p "  Password (attempt $attempt/3): " PG_SUPER_PASSWORD_TRY
+        echo ""
+        export PGPASSWORD="$PG_SUPER_PASSWORD_TRY"
+        if psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -d postgres -tAc "SELECT 1;" &>/dev/null; then
+            SUPER_AUTH_MODE="password"
+            PG_SUPER_PASSWORD="$PG_SUPER_PASSWORD_TRY"
+            ok "Password accepted."
+            break
+        else
+            remaining=$((3 - attempt))
+            warn "Wrong password. $remaining attempt(s) remaining."
+        fi
+    done
+fi
+
+if [ -z "$SUPER_AUTH_MODE" ]; then
     fail "Authentication failed after 3 attempts. Exiting."
     exit 1
 fi
@@ -158,8 +174,12 @@ echo ""
 run_super_sql() {
     local sql="$1"
     local db="${2:-postgres}"
-    PGPASSWORD="$PG_SUPER_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
-        -U postgres -d "$db" -v ON_ERROR_STOP=1 -c "$sql" 2>&1
+    if [ "$SUPER_AUTH_MODE" = "sudo" ]; then
+        sudo -u postgres psql -d "$db" -v ON_ERROR_STOP=1 -c "$sql" 2>&1
+    else
+        PGPASSWORD="$PG_SUPER_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U postgres -d "$db" -v ON_ERROR_STOP=1 -c "$sql" 2>&1
+    fi
 }
 
 run_app_sql() {
@@ -167,6 +187,47 @@ run_app_sql() {
     PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
         -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -tAc "$sql" 2>&1
 }
+
+ensure_app_access() {
+    step "STEP 5 -- Validating app DB credentials"
+
+    if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+        -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+        ok "App user '$DB_USER' can connect to '$DB_NAME'."
+        return
+    fi
+
+    warn "App user connection failed. Attempting to sync role/database from .env ..."
+
+    local role_exists
+    role_exists=$(run_super_sql "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER';" | tr -d '[:space:]' || true)
+    if [ "$role_exists" = "1" ]; then
+        run_super_sql "ALTER ROLE \"$DB_USER\" WITH LOGIN PASSWORD '$DB_PASSWORD';" > /dev/null
+        ok "Role '$DB_USER' password synced."
+    else
+        run_super_sql "CREATE ROLE \"$DB_USER\" WITH LOGIN PASSWORD '$DB_PASSWORD';" > /dev/null
+        ok "Role '$DB_USER' created."
+    fi
+
+    local db_exists
+    db_exists=$(run_super_sql "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | tr -d '[:space:]' || true)
+    if [ "$db_exists" != "1" ]; then
+        run_super_sql "CREATE DATABASE \"$DB_NAME\" OWNER \"$DB_USER\";" > /dev/null
+        ok "Database '$DB_NAME' created."
+    fi
+
+    run_super_sql "GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO \"$DB_USER\";" > /dev/null
+
+    if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+        -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+        ok "App user connectivity restored."
+    else
+        fail "Unable to connect as '$DB_USER' to '$DB_NAME' after auto-fix."
+        exit 1
+    fi
+}
+
+ensure_app_access
 
 reset_sequences() {
     step "Resetting primary-key sequences"
@@ -202,7 +263,7 @@ reset_sequences() {
 # ---------------------------------------------------------------------------
 # STEP 5 -- Main menu
 # ---------------------------------------------------------------------------
-step "STEP 5 -- Choose operation"
+step "STEP 6 -- Choose operation"
 echo ""
 echo -e "  ${CYAN}[1]  EXPORT  -- Dump current database to the exports folder${NC}"
 echo -e "  ${CYAN}[2]  IMPORT  -- Restore a dump file into the database${NC}"
@@ -236,12 +297,15 @@ if [ "$choice" = "1" ]; then
     fi
 
     size_bytes=$(wc -c < "$file_path" | tr -d '[:space:]')
-    size_mb=$(echo "scale=2; $size_bytes / 1048576" | bc)
+    size_mb=$(awk -v b="$size_bytes" 'BEGIN { printf "%.2f", b / 1048576 }')
     echo ""
     ok "Export complete!"
     info "File : $file_name"
     info "Size : ${size_mb} MB"
     info "Path : $EXPORTS_DIR"
+
+    # Reset sequences after export too, to keep behavior consistent across scripts.
+    reset_sequences
 
 # ===========================================================================
 # IMPORT
@@ -249,8 +313,11 @@ if [ "$choice" = "1" ]; then
 elif [ "$choice" = "2" ]; then
     step "IMPORT -- Select a dump file to restore"
 
-    # Collect dump files sorted by name
-    mapfile -t dump_files < <(find "$EXPORTS_DIR" -maxdepth 1 -name "*.dump" | sort)
+    # Collect dump files sorted by name (compatible with older bash versions)
+    dump_files=()
+    while IFS= read -r file; do
+        dump_files+=("$file")
+    done < <(find "$EXPORTS_DIR" -maxdepth 1 -name "*.dump" | sort)
 
     if [ "${#dump_files[@]}" -eq 0 ]; then
         fail "No dump files found in: $EXPORTS_DIR"
@@ -265,7 +332,7 @@ elif [ "$choice" = "2" ]; then
         f="${dump_files[$i]}"
         fname="$(basename "$f")"
         size_bytes=$(wc -c < "$f" | tr -d '[:space:]')
-        size_mb=$(echo "scale=2; $size_bytes / 1048576" | bc)
+        size_mb=$(awk -v b="$size_bytes" 'BEGIN { printf "%.2f", b / 1048576 }')
         mod_date=$(date -r "$f" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || stat -c '%y' "$f" 2>/dev/null | cut -d'.' -f1)
         printf "  [%d]  %s  (%.2f MB)  %s\n" "$((i + 1))" "$fname" "$size_mb" "$mod_date"
     done
@@ -394,23 +461,47 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" > /dev/null || true
 
         # Step 3: Patch every INSERT line with ON CONFLICT DO NOTHING
         info "Step 3/4 -- Patching INSERTs with ON CONFLICT DO NOTHING ..."
-        sed -i -E 's/^(INSERT INTO .+);$/\1 ON CONFLICT DO NOTHING;/' "$temp_sql"
+        temp_sql_patched="${temp_sql}.patched"
+        awk '{
+            if ($0 ~ /^INSERT INTO .+;$/) {
+                sub(/;$/, " ON CONFLICT DO NOTHING;")
+            }
+            print
+        }' "$temp_sql" > "$temp_sql_patched"
+        mv "$temp_sql_patched" "$temp_sql"
         ok "SQL patched."
 
         # Step 4: Execute patched SQL against the main database
         info "Step 4/4 -- Inserting new records into '$DB_NAME' (skipping duplicates) ..."
         export PGPASSWORD="$DB_PASSWORD"
+        merge_out="/tmp/labledger_merge_out_$$.log"
         psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-             -v ON_ERROR_STOP=0 -f "$temp_sql" 2>&1 | \
-             grep -i 'ERROR' | while read -r line; do warn "$line"; done || true
+             -v ON_ERROR_STOP=0 -f "$temp_sql" > "$merge_out" 2>&1 || true
+
+        if grep -qi '^ERROR' "$merge_out"; then
+            while IFS= read -r line; do
+                warn "$line"
+            done < <(grep -i '^ERROR' "$merge_out")
+        fi
+
+        inserted_count=$(grep -c '^INSERT 0 1$' "$merge_out" || true)
+        skipped_count=$(grep -c '^INSERT 0 0$' "$merge_out" || true)
+        attempted_count=$((inserted_count + skipped_count))
+
+        echo ""
+        ok "MERGE summary"
+        info "Rows attempted : $attempted_count"
+        info "Rows inserted  : $inserted_count"
+        info "Rows skipped   : $skipped_count (conflict/duplicate)"
 
         # Cleanup
         rm -f "$temp_sql"
+        rm -f "$merge_out"
         run_super_sql "DROP DATABASE IF EXISTS \"$temp_db\";" > /dev/null || true
         ok "Merge completed. Staging database removed."
     fi
 
-    # Reset sequences (both modes)
+    # Reset sequences (both import modes)
     reset_sequences
 
 else

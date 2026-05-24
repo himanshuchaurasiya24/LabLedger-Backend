@@ -93,13 +93,12 @@ $DefaultEnvLines = @(
     "# LabLedger Backend Environment Variables",
     "# NEVER commit this file to git!",
     "",
-    "DJANGO_SECRET_KEY=LL2026SecKeyA9F3K8M1PX6RT2VW4XY7ZB0CD5EH9JK3MN8PR1SU4WX7EZ2",
+    "DJANGO_SECRET_KEY=change-this-secret-key-before-production",
     "DEBUG=False",
-    "ALLOWED_HOSTS=127.0.0.1,localhost,80.225.228.15",
-    "CORS_ALLOWED_ORIGINS=https://80.225.228.15,https://localhost",
+    "ALLOWED_HOSTS=127.0.0.1,localhost",
+    "CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1",
     "CORS_ALLOW_CREDENTIALS=False",
-    "USE_HTTPS=True",
-    "APP_MODE=development",
+    "USE_HTTPS=False",
     "DB_ENGINE=django.db.backends.postgresql",
     "DB_NAME=labledger",
     "DB_USER=labledger_user",
@@ -154,14 +153,27 @@ Write-Host "  Enter the 'postgres' superuser password (set during installation).
 Write-Host ""
 
 $PG_SUPER_PASSWORD_PLAIN = $null
+
+if ($env:POSTGRES_SUPER_PASSWORD) {
+    $env:PGPASSWORD = $env:POSTGRES_SUPER_PASSWORD
+    & $PsqlExe -h $DB_HOST -p $DB_PORT -U postgres -d postgres -tAc "SELECT 1;" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $PG_SUPER_PASSWORD_PLAIN = $env:POSTGRES_SUPER_PASSWORD
+        Write-Ok "Superuser password loaded from POSTGRES_SUPER_PASSWORD."
+    } else {
+        Write-Warn "POSTGRES_SUPER_PASSWORD is set but authentication failed; falling back to prompt."
+    }
+}
+
 for ($i = 1; $i -le 3; $i++) {
+    if ($PG_SUPER_PASSWORD_PLAIN) { break }
     $sec = Read-Host "  Password (attempt $i/3)" -AsSecureString
     $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
     $env:PGPASSWORD = $plain
     & $PsqlExe -h $DB_HOST -p $DB_PORT -U postgres -d postgres -tAc "SELECT 1;" 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) { $PG_SUPER_PASSWORD_PLAIN = $plain; Write-Ok "Password accepted."; break }
-    Write-Warn "Wrong password. $($3 - $i) attempt(s) left."
+    Write-Warn "Wrong password. $(3 - $i) attempt(s) left."
 }
 if (-not $PG_SUPER_PASSWORD_PLAIN) {
     Write-Fail "Authentication failed after 3 attempts. Exiting."
@@ -187,6 +199,47 @@ function Invoke-AppSql {
                       -v ON_ERROR_STOP=1 -tAc $Sql 2>&1
     return $out
 }
+
+function Ensure-AppAccess {
+    Write-Step "STEP 5 -- Validating app DB credentials"
+
+    $env:PGPASSWORD = $DB_PASSWORD
+    & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc "SELECT 1;" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok "App user '$DB_USER' can connect to '$DB_NAME'."
+        return
+    }
+
+    Write-Warn "App user connection failed. Attempting to sync role/database from .env ..."
+
+    $roleExists = Invoke-SuperSql -Sql "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER';"
+    if ($roleExists -match '1') {
+        Invoke-SuperSql -Sql "ALTER ROLE `"$DB_USER`" WITH LOGIN PASSWORD '$DB_PASSWORD';" | Out-Null
+        Write-Ok "Role '$DB_USER' password synced."
+    } else {
+        Invoke-SuperSql -Sql "CREATE ROLE `"$DB_USER`" WITH LOGIN PASSWORD '$DB_PASSWORD';" | Out-Null
+        Write-Ok "Role '$DB_USER' created."
+    }
+
+    $dbExists = Invoke-SuperSql -Sql "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';"
+    if ($dbExists -notmatch '1') {
+        Invoke-SuperSql -Sql "CREATE DATABASE `"$DB_NAME`" OWNER `"$DB_USER`";" | Out-Null
+        Write-Ok "Database '$DB_NAME' created."
+    }
+
+    Invoke-SuperSql -Sql "GRANT ALL PRIVILEGES ON DATABASE `"$DB_NAME`" TO `"$DB_USER`";" | Out-Null
+
+    $env:PGPASSWORD = $DB_PASSWORD
+    & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc "SELECT 1;" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok "App user connectivity restored."
+    } else {
+        Write-Fail "Unable to connect as '$DB_USER' to '$DB_NAME' after auto-fix."
+        exit 1
+    }
+}
+
+Ensure-AppAccess
 
 function Reset-Sequences {
     Write-Step "Resetting primary-key sequences"
@@ -219,7 +272,7 @@ function Reset-Sequences {
 # ---------------------------------------------------------------------------
 # STEP 5 -- Main menu
 # ---------------------------------------------------------------------------
-Write-Step "STEP 5 -- Choose operation"
+Write-Step "STEP 6 -- Choose operation"
 Write-Host ""
 Write-Host "  [1]  EXPORT  -- Dump the current database to the exports folder" -ForegroundColor Cyan
 Write-Host "  [2]  IMPORT  -- Restore a dump file into the database" -ForegroundColor Cyan
@@ -259,6 +312,9 @@ if ($choice -eq '1') {
     Write-Info "File : $fileName"
     Write-Info "Size : $sizeMb MB"
     Write-Info "Path : $ExportsDir"
+
+    # Reset sequences after export too, for consistent behavior.
+    Reset-Sequences
 }
 
 # ===========================================================================
@@ -288,7 +344,12 @@ elseif ($choice -eq '2') {
     Write-Host ""
 
     $sel = Read-Host "  Enter the number of the file to restore"
-    $idx = [int]$sel - 1
+    $parsedSel = 0
+    if (-not [int]::TryParse($sel, [ref]$parsedSel)) {
+        Write-Fail "Invalid selection '$sel'. Enter a number."
+        exit 1
+    }
+    $idx = $parsedSel - 1
 
     if ($idx -lt 0 -or $idx -ge $dumpFiles.Count) {
         Write-Fail "Invalid selection '$sel'. Exiting."
@@ -434,11 +495,22 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();
         # -- Step 4: Execute patched SQL against the main database --
         Write-Info "Step 4/4 -- Inserting new records into '$DB_NAME' (skipping duplicates) ..."
         $env:PGPASSWORD = $DB_PASSWORD
-        & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME `
-                   -v ON_ERROR_STOP=0 -f $tempSql 2>&1 |
-            ForEach-Object {
-                if ($_ -match 'ERROR') { Write-Warn $_.ToString() }
-            }
+        $mergeOutput = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME `
+                              -v ON_ERROR_STOP=0 -f $tempSql 2>&1
+
+        $mergeOutput | ForEach-Object {
+            if ($_ -match '^ERROR') { Write-Warn $_.ToString() }
+        }
+
+        $insertedCount = @($mergeOutput | Where-Object { $_ -match '^INSERT 0 1$' }).Count
+        $skippedCount  = @($mergeOutput | Where-Object { $_ -match '^INSERT 0 0$' }).Count
+        $attemptedCount = $insertedCount + $skippedCount
+
+        Write-Host ""
+        Write-Ok "MERGE summary"
+        Write-Info "Rows attempted : $attemptedCount"
+        Write-Info "Rows inserted  : $insertedCount"
+        Write-Info "Rows skipped   : $skippedCount (conflict/duplicate)"
 
         # -- Cleanup --
         Remove-Item $tempSql -ErrorAction SilentlyContinue
@@ -446,7 +518,7 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();
         Write-Ok "Merge completed. Staging database removed."
     }
 
-    # Reset sequences (both modes)
+    # Reset sequences (both import modes)
     Reset-Sequences
 }
 

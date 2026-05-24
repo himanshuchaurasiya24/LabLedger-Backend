@@ -103,14 +103,12 @@ $DefaultEnvLines = @(
     "# NEVER commit this file to git!",
     "",
     "# Generate a new key with: python -c `"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())`"",
-    "DJANGO_SECRET_KEY=LL2026SecKeyA9F3K8M1PX6RT2VW4XY7ZB0CD5EH9JK3MN8PR1SU4WX7EZ2",
+    "DJANGO_SECRET_KEY=change-this-secret-key-before-production",
     "DEBUG=False",
-    "ALLOWED_HOSTS=127.0.0.1,localhost,80.225.228.15",
-    "CORS_ALLOWED_ORIGINS=https://80.225.228.15,https://localhost",
+    "ALLOWED_HOSTS=127.0.0.1,localhost",
+    "CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1",
     "CORS_ALLOW_CREDENTIALS=False",
-    "USE_HTTPS=True",
-    "APP_MODE=development",
-    "# APP_MODE=production",
+    "USE_HTTPS=False",
     "# Database",
     "DB_ENGINE=django.db.backends.postgresql",
     "DB_NAME=labledger",
@@ -190,22 +188,34 @@ Write-Host ""
 $PG_SUPER_PASSWORD_PLAIN = $null
 $maxAttempts = 3
 
-for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-    $securePass = Read-Host "  Enter postgres superuser password (attempt $attempt/$maxAttempts)" -AsSecureString
-    $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePass)
-    )
-
-    # Test the password with a trivial query before proceeding
-    $env:PGPASSWORD = $plain
-    $testOut = & $PsqlExe -h $DB_HOST -p $DB_PORT -U postgres -d postgres `
-                          -tAc "SELECT 1;" 2>&1
+if ($env:POSTGRES_SUPER_PASSWORD) {
+    $env:PGPASSWORD = $env:POSTGRES_SUPER_PASSWORD
+    & $PsqlExe -h $DB_HOST -p $DB_PORT -U postgres -d postgres -tAc "SELECT 1;" 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
-        $PG_SUPER_PASSWORD_PLAIN = $plain
-        Write-Ok "Superuser password accepted."
-        break
+        $PG_SUPER_PASSWORD_PLAIN = $env:POSTGRES_SUPER_PASSWORD
+        Write-Ok "Superuser password loaded from POSTGRES_SUPER_PASSWORD."
     } else {
-        Write-Warn "Wrong password. $($maxAttempts - $attempt) attempt(s) remaining."
+        Write-Warn "POSTGRES_SUPER_PASSWORD is set but authentication failed; falling back to prompt."
+    }
+}
+
+if (-not $PG_SUPER_PASSWORD_PLAIN) {
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $securePass = Read-Host "  Enter postgres superuser password (attempt $attempt/$maxAttempts)" -AsSecureString
+        $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePass)
+        )
+
+        $env:PGPASSWORD = $plain
+        $testOut = & $PsqlExe -h $DB_HOST -p $DB_PORT -U postgres -d postgres `
+                              -tAc "SELECT 1;" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $PG_SUPER_PASSWORD_PLAIN = $plain
+            Write-Ok "Superuser password accepted."
+            break
+        } else {
+            Write-Warn "Wrong password. $($maxAttempts - $attempt) attempt(s) remaining."
+        }
     }
 }
 
@@ -258,7 +268,9 @@ Write-Step "STEP 4 -- Creating PostgreSQL role '$DB_USER'"
 
 $RoleExists = Invoke-Psql -Sql "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER';"
 if ($RoleExists -match '1') {
-    Write-Ok "Role '$DB_USER' already exists -- skipping creation."
+    Write-Info "Role '$DB_USER' already exists -- syncing password from .env ..."
+    Invoke-Psql -Sql "ALTER ROLE `"$DB_USER`" WITH LOGIN PASSWORD '$DB_PASSWORD';" | Out-Null
+    Write-Ok "Role '$DB_USER' password synced."
 } else {
     Write-Info "Creating role '$DB_USER' ..."
     Invoke-Psql -Sql "CREATE ROLE `"$DB_USER`" WITH LOGIN PASSWORD '$DB_PASSWORD';" | Out-Null
@@ -281,6 +293,15 @@ if ($DbExists -match '1') {
 
 Invoke-Psql -Sql "GRANT ALL PRIVILEGES ON DATABASE `"$DB_NAME`" TO `"$DB_USER`";" | Out-Null
 Write-Ok "Privileges granted to '$DB_USER' on '$DB_NAME'."
+
+$env:PGPASSWORD = $DB_PASSWORD
+& $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc "SELECT 1;" 2>&1 | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    Write-Ok "Verified app user '$DB_USER' can connect to '$DB_NAME'."
+} else {
+    Write-Fail "App user '$DB_USER' cannot connect to '$DB_NAME' with the current .env credentials."
+    exit 1
+}
 
 # ---------------------------------------------------------------------------
 # STEP 6 -- Run Django migrations

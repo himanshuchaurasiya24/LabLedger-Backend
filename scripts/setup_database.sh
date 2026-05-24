@@ -100,14 +100,12 @@ DEFAULT_ENV_CONTENT='# LabLedger Backend Environment Variables
 # NEVER commit this file to git!
 
 # Generate a new key with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-DJANGO_SECRET_KEY=LL2026SecKeyA9F3K8M1PX6RT2VW4XY7ZB0CD5EH9JK3MN8PR1SU4WX7EZ2
+DJANGO_SECRET_KEY=change-this-secret-key-before-production
 DEBUG=False
-ALLOWED_HOSTS=127.0.0.1,localhost,80.225.228.15
-CORS_ALLOWED_ORIGINS=https://80.225.228.15,https://localhost
+ALLOWED_HOSTS=127.0.0.1,localhost
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1
 CORS_ALLOW_CREDENTIALS=False
-USE_HTTPS=True
-APP_MODE=development
-# APP_MODE=production
+USE_HTTPS=False
 # Database
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=labledger
@@ -177,18 +175,59 @@ else
 fi
 
 # ─────────────────────────────────────────────
+#  Superuser authentication mode
+# ─────────────────────────────────────────────
+step "STEP 4 — Authenticating as PostgreSQL superuser"
+
+SUPER_AUTH_MODE=""
+PG_SUPER_PASSWORD=""
+
+if [ -n "${POSTGRES_SUPER_PASSWORD:-}" ] && \
+   PGPASSWORD="$POSTGRES_SUPER_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+   -U postgres -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="password"
+    PG_SUPER_PASSWORD="$POSTGRES_SUPER_PASSWORD"
+    ok "Authenticated via POSTGRES_SUPER_PASSWORD environment variable."
+elif sudo -n -u postgres psql -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="sudo"
+    ok "Authenticated via OS postgres user (sudo, non-interactive)."
+elif sudo -u postgres psql -d postgres -tAc "SELECT 1;" &>/dev/null; then
+    SUPER_AUTH_MODE="sudo"
+    ok "Authenticated via OS postgres user (sudo)."
+else
+    warn "Sudo/peer auth unavailable. Enter postgres DB superuser password."
+    for attempt in 1 2 3; do
+        read -r -s -p "  Password (attempt $attempt/3): " PG_SUPER_PASSWORD_TRY
+        echo ""
+        if PGPASSWORD="$PG_SUPER_PASSWORD_TRY" psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U postgres -d postgres -tAc "SELECT 1;" &>/dev/null; then
+            SUPER_AUTH_MODE="password"
+            PG_SUPER_PASSWORD="$PG_SUPER_PASSWORD_TRY"
+            ok "Password accepted."
+            break
+        else
+            remaining=$((3 - attempt))
+            warn "Wrong password. $remaining attempt(s) remaining."
+        fi
+    done
+fi
+
+if [ -z "$SUPER_AUTH_MODE" ]; then
+    fail "Could not authenticate as postgres superuser. Exiting."
+    exit 1
+fi
+
+# ─────────────────────────────────────────────
 #  Helper: run SQL as the postgres superuser
 # ─────────────────────────────────────────────
 run_as_super() {
-    # Try sudo -u postgres first (Linux), then plain psql (macOS / trust auth)
     local sql="$1"
     local db="${2:-postgres}"
-    if sudo -n -u postgres true 2>/dev/null; then
-        sudo -u postgres psql -h "$DB_HOST" -p "$DB_PORT" -d "$db" \
-             -v ON_ERROR_STOP=1 -c "$sql" 2>&1
+    if [ "$SUPER_AUTH_MODE" = "sudo" ]; then
+        sudo -u postgres psql -d "$db" -v ON_ERROR_STOP=1 -c "$sql" 2>&1
     else
-        PGPASSWORD="" psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -d "$db" \
-             -v ON_ERROR_STOP=1 -c "$sql" 2>&1
+        PGPASSWORD="$PG_SUPER_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+            -U postgres -d "$db" -v ON_ERROR_STOP=1 -c "$sql" 2>&1
     fi
 }
 
@@ -200,13 +239,15 @@ run_as_app_user() {
 }
 
 # ─────────────────────────────────────────────
-#  STEP 4 — Create role / user
+#  STEP 5 — Create role / user
 # ─────────────────────────────────────────────
-step "STEP 4 — Creating PostgreSQL role '$DB_USER'"
+step "STEP 5 — Creating PostgreSQL role '$DB_USER'"
 
 ROLE_EXISTS=$(run_as_super "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER';" | grep -c '1' || true)
 if [ "$ROLE_EXISTS" -ge 1 ]; then
-    ok "Role '$DB_USER' already exists — skipping creation."
+    info "Role '$DB_USER' already exists — syncing password from .env ..."
+    run_as_super "ALTER ROLE \"$DB_USER\" WITH LOGIN PASSWORD '$DB_PASSWORD';" > /dev/null
+    ok "Role '$DB_USER' password synced."
 else
     info "Creating role '$DB_USER' ..."
     run_as_super "CREATE ROLE \"$DB_USER\" WITH LOGIN PASSWORD '$DB_PASSWORD';" > /dev/null
@@ -214,9 +255,9 @@ else
 fi
 
 # ─────────────────────────────────────────────
-#  STEP 5 — Create database
+#  STEP 6 — Create database
 # ─────────────────────────────────────────────
-step "STEP 5 — Creating database '$DB_NAME'"
+step "STEP 6 — Creating database '$DB_NAME'"
 
 DB_EXISTS=$(run_as_super "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | grep -c '1' || true)
 if [ "$DB_EXISTS" -ge 1 ]; then
@@ -230,10 +271,18 @@ fi
 run_as_super "GRANT ALL PRIVILEGES ON DATABASE \"$DB_NAME\" TO \"$DB_USER\";" > /dev/null
 ok "Privileges granted to '$DB_USER' on '$DB_NAME'."
 
+if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
+    -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1;" >/dev/null 2>&1; then
+    ok "Verified app user '$DB_USER' can connect to '$DB_NAME'."
+else
+    fail "App user '$DB_USER' cannot connect to '$DB_NAME' with the current .env credentials."
+    exit 1
+fi
+
 # ─────────────────────────────────────────────
-#  STEP 6 — Run Django migrations
+#  STEP 7 — Run Django migrations
 # ─────────────────────────────────────────────
-step "STEP 6 — Running Django migrations"
+step "STEP 7 — Running Django migrations"
 
 PYTHON_EXE="$ROOT_DIR/venv/bin/python"
 
@@ -253,9 +302,9 @@ info "Running: python manage.py migrate"
 ok "All migrations applied successfully."
 
 # ─────────────────────────────────────────────
-#  STEP 7 — Reset primary-key sequences
+#  STEP 8 — Reset primary-key sequences
 # ─────────────────────────────────────────────
-step "STEP 7 — Resetting primary-key sequences"
+step "STEP 8 — Resetting primary-key sequences"
 
 # All Django-managed tables (built-ins + project apps)
 TABLES=(
