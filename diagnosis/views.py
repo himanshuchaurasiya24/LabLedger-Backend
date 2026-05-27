@@ -1073,13 +1073,21 @@ class FlexibleIncentiveReportView(APIView):
 
         final_bills = base_qs.select_related(
             'referred_by_doctor', 'franchise_name'
-        ).order_by('referred_by_doctor__first_name', 'referred_by_doctor__last_name')
-        # ).order_by('date_of_bill')
+        ).order_by(
+            'referred_by_doctor__first_name',
+            'referred_by_doctor__last_name',
+            '-date_of_bill',
+            '-id',
+        )
 
-        response_data = []
+        response_groups = []
         for doctor, bills_iterator in groupby(final_bills, key=lambda bill: bill.referred_by_doctor):
 
-            doctor_bills = list(bills_iterator)
+            doctor_bills = sorted(
+                bills_iterator,
+                key=lambda bill: (bill.date_of_bill or date.min, bill.pk or 0),
+                reverse=True,
+            )
             total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
 
 
@@ -1089,14 +1097,25 @@ class FlexibleIncentiveReportView(APIView):
             # Keep all doctors with bills, including negative/zero totals,
             # so the frontend can surface loss-making incentive periods.
             if serialized_bills:
-                response_data.append({
+                response_groups.append((
+                    doctor_bills[0].date_of_bill if doctor_bills else None,
+                    {
                     # The full doctor model is now in a nested object
                     "doctor": serialized_doctor,
                     "total_incentive": total_incentive,
                     "bills": serialized_bills
-                })
+                    },
+                ))
 
             # 👆 --- MODIFICATIONS END HERE --- 👆
+
+        response_data = [
+            item for _, item in sorted(
+                response_groups,
+                key=lambda group: group[0] or date.min,
+                reverse=True,
+            )
+        ]
 
         return Response(response_data)
 
