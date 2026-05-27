@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 from datetime import date, timedelta
 
@@ -67,25 +68,32 @@ class ActiveSubscriptionSerializer(serializers.ModelSerializer):
         plan = validated_data["subscription_plan"]
         manual_expiry_provided = "plan_expires_on" in validated_data
 
-        existing = ActiveSubscription.objects.filter(center_detail=center).first()
+        defaults = {
+            key: value for key, value in validated_data.items() if key != "center_detail"
+        }
 
-        if not manual_expiry_provided:
-            if existing and existing.plan_expires_on:
-                base_date = max(existing.plan_expires_on, date.today())
-            else:
-                base_date = validated_data.get("plan_activated_on") or date.today()
-            validated_data["plan_expires_on"] = base_date + timedelta(
-                days=plan.duration_days
+        with transaction.atomic():
+            existing = (
+                ActiveSubscription.objects.select_for_update()
+                .filter(center_detail=center)
+                .first()
             )
 
-        # If one already exists for the center, treat create as reassignment update.
-        if existing:
-            for key, value in validated_data.items():
-                setattr(existing, key, value)
-            existing.save()
-            return existing
+            if not manual_expiry_provided:
+                if existing and existing.plan_expires_on:
+                    base_date = max(existing.plan_expires_on, date.today())
+                else:
+                    base_date = validated_data.get("plan_activated_on") or date.today()
+                defaults["plan_expires_on"] = base_date + timedelta(
+                    days=plan.duration_days
+                )
 
-        return super().create(validated_data)
+            # Keep exactly one active subscription row per center.
+            subscription, _ = ActiveSubscription.objects.update_or_create(
+                center_detail=center,
+                defaults=defaults,
+            )
+            return subscription
 
     def update(self, instance, validated_data):
         plan = validated_data.get("subscription_plan", instance.subscription_plan)

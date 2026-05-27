@@ -1,9 +1,9 @@
 import django_filters
 from django.utils.timezone import now, timedelta
 from calendar import monthrange
-
+from .models import Bill
 from center_detail.models import CenterDetail
-from .models import Doctor, DiagnosisType, Bill, PatientReport, SampleTestReport
+from .models import Doctor, DiagnosisType, PatientReport, SampleTestReport
 
 # Doctor Filter
 class DoctorFilter(django_filters.FilterSet):
@@ -19,8 +19,8 @@ class DoctorFilter(django_filters.FilterSet):
 
     class Meta:
         model = Doctor
-        fields = ['first_name', 'last_name', 'phone_number', 'address', 
-                  'ultrasound_percentage', 'pathology_percentage', 
+        fields = ['first_name', 'last_name', 'phone_number', 'address',
+                  'ultrasound_percentage', 'pathology_percentage',
                   'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage']
 
 
@@ -36,11 +36,6 @@ class DiagnosisTypeFilter(django_filters.FilterSet):
         model = DiagnosisType
         fields = ['name', 'category', 'price', 'center_detail']
 
-import django_filters
-from datetime import timedelta
-from calendar import monthrange
-from django.utils.timezone import now
-from .models import Bill
 
 class BillFilter(django_filters.FilterSet):
     bill_number = django_filters.CharFilter(field_name='bill_number', lookup_expr='iexact')
@@ -139,7 +134,7 @@ class PatientReportFilter(django_filters.FilterSet):
 class SampleTestReportFilter(django_filters.FilterSet):
     diagnosis_name = django_filters.CharFilter(field_name="diagnosis_name", lookup_expr="icontains")
     center_detail = django_filters.ModelChoiceFilter(queryset=CenterDetail.objects.all())
-    
+
     class Meta:
         model = SampleTestReport
         fields = ["category", "diagnosis_name", "center_detail", "id"]

@@ -2,7 +2,7 @@ from django.utils import timezone
 from django.db import models
 from django.forms import ValidationError
 from django.core.validators import RegexValidator
-from django.utils.text import slugify
+# from django.utils.text import slugify
 import uuid
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
@@ -28,7 +28,7 @@ SEX_CHOICES = [
 ("Male", "Male"),
 ("Female", "Female"),
 ("Others", "Others"),
-]   
+]
 BILL_STATUS_CHOICES = [
     ('Fully Paid', 'Fully Paid'),
     ('Partially Paid', 'Partially Paid'),
@@ -71,7 +71,7 @@ class DiagnosisCategory(models.Model):
         verbose_name = "Diagnosis Category"
         verbose_name_plural = "Diagnosis Categories"
         ordering = ['name']
-    
+
     def delete(self, *args, **kwargs):
         """
         Custom delete to ensure each diagnosis type's delete method is called
@@ -79,11 +79,11 @@ class DiagnosisCategory(models.Model):
         """
         # Get all diagnosis types in this category
         diagnosis_types = list(self.diagnosis_types.all())
-        
+
         # Delete each one individually to trigger their custom delete logic
         for dt in diagnosis_types:
             dt.delete()
-        
+
         # Now delete the category itself
         super().delete(*args, **kwargs)
 
@@ -99,7 +99,7 @@ class Doctor(models.Model):
     address = models.TextField(blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
-    
+
     # Old percentage fields - kept for backward compatibility, nullable
     ultrasound_percentage = models.IntegerField(null=True, blank=True, default=0)
     pathology_percentage = models.IntegerField(null=True, blank=True, default=0)
@@ -142,7 +142,7 @@ class DiagnosisType(models.Model):
     name = models.CharField(max_length=255)
     category = models.ForeignKey(DiagnosisCategory, on_delete=models.CASCADE, related_name='diagnosis_types')
     price = models.IntegerField()
-    
+
     def delete(self, *args, **kwargs):
         """
         Smart cascade delete:
@@ -151,18 +151,18 @@ class DiagnosisType(models.Model):
         """
         # Find all bills that reference this diagnosis type
         bill_diagnosis_types = self.bill_references.all()
-        
+
         # For each bill, check if it only has this diagnosis type
         for bdt in bill_diagnosis_types:
             bill = bdt.bill
             # Count how many diagnosis types this bill has
             diagnosis_count = bill.bill_diagnosis_types.count()
-            
+
             if diagnosis_count == 1:
                 # This is the only diagnosis type, delete the entire bill
                 bill.delete()
             # If diagnosis_count > 1, the CASCADE will just remove the BillDiagnosisType entry
-        
+
         # Now delete the diagnosis type itself (CASCADE will handle remaining BillDiagnosisType entries)
         super().delete(*args, **kwargs)
 
@@ -180,7 +180,7 @@ class AuditLog(models.Model):
         ('PASSWORD_CHANGE', 'Password Change'),
         ('PRIVILEGE_CHANGE', 'Privilege Change'),
     ]
-    
+
     user = models.ForeignKey(
         StaffAccount,
         on_delete=models.SET_NULL,
@@ -194,14 +194,14 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['user', 'timestamp']),
             models.Index(fields=['model_name', 'object_id']),
         ]
-    
+
     def __str__(self):
         return f"{self.user} - {self.action} - {self.model_name} - {self.timestamp}"
 
@@ -218,10 +218,10 @@ class BillDiagnosisType(models.Model):
     bill = models.ForeignKey('Bill', on_delete=models.CASCADE, related_name='bill_diagnosis_types')
     diagnosis_type = models.ForeignKey(DiagnosisType, on_delete=models.CASCADE, related_name='bill_references')
     price_at_time = models.IntegerField()  # Store price at time of bill creation
-    
+
     class Meta:
         unique_together = ('bill', 'diagnosis_type')
-    
+
     def __str__(self):
         return f"{self.bill.bill_number} - {self.diagnosis_type.name}"
 
@@ -235,7 +235,7 @@ class Bill(models.Model):
         default=9999999999,  # Placeholder for old records
         validators=[
             RegexValidator(
-                regex=r'^\d{10,15}$', 
+                regex=r'^\d{10,15}$',
                 message="Phone number must be between 10 and 15 digits."
             )
         ]
@@ -276,7 +276,7 @@ class Bill(models.Model):
         # Bill status validations
         if bill_status not in dict(BILL_STATUS_CHOICES):
             raise ValidationError(f"Invalid bill status: {bill_status}. Must be one of {', '.join(dict(BILL_STATUS_CHOICES).keys())}.")
-        
+
         # For M2M fields, total_amount validation needs to happen after save
         # We'll do a simple check here if total_amount is already set
         if hasattr(self, 'total_amount') and self.total_amount:
@@ -289,7 +289,7 @@ class Bill(models.Model):
                 raise ValidationError({
                     'paid_amount': f"For a partially paid bill, total amount ({total}) must be greater than paid ({paid}) + discounts ({center_disc + doctor_disc})."
                 })
-        
+
         if bill_status == 'Unpaid' and (paid > 0 or center_disc > 0 or doctor_disc > 0):
             raise ValidationError({
                 'paid_amount': "For an unpaid bill, paid amount and all discounts must be zero."
@@ -303,20 +303,20 @@ class Bill(models.Model):
 
         # For new instances, we need to save first before we can add m2m relationships
         is_new = self.pk is None
-        
+
         # Set total_amount to 0 initially for new bills (will be updated after m2m is set)
         if is_new:
             if self.total_amount is None:
                 self.total_amount = 0
             if self.incentive_amount is None:
                 self.incentive_amount = 0
-        
+
         # Run basic validations
         self.full_clean()
-        
+
         # Save the bill instance first
         super().save(*args, **kwargs)
-        
+
     def calculate_totals_and_incentive(self):
         """
         Calculate total_amount and incentive_amount based on all diagnosis types.
@@ -324,13 +324,13 @@ class Bill(models.Model):
         """
         # Calculate total amount from all diagnosis types
         bill_diagnosis_types = self.bill_diagnosis_types.all()
-        
+
         if not bill_diagnosis_types.exists():
             self.total_amount = 0
             self.incentive_amount = 0
             super(Bill, self).save(update_fields=['total_amount', 'incentive_amount'])
             return
-        
+
         # Check if any diagnosis type is Franchise Lab
         has_franchise_lab = any(
             bdt.diagnosis_type.category.name.lower() == 'franchise lab'
@@ -340,7 +340,7 @@ class Bill(models.Model):
             bdt.diagnosis_type.category.name.lower() != 'franchise lab'
             for bdt in bill_diagnosis_types
         )
-        
+
         # Validate franchise name requirement
         if has_franchise_lab and not self.franchise_name:
             raise ValidationError({
@@ -349,25 +349,25 @@ class Bill(models.Model):
         elif not has_franchise_lab and has_non_franchise and self.franchise_name:
             # Clear franchise name if no franchise lab diagnosis types
             self.franchise_name = None
-        
+
         # Calculate total amount
         total_amount = sum(bdt.price_at_time for bdt in bill_diagnosis_types)
         self.total_amount = total_amount
-        
+
         # Calculate incentive
         paid = int(self.paid_amount or 0)
         center_disc = int(self.disc_by_center or 0)
         doctor_disc = int(self.disc_by_doctor or 0)
         total_incentive = 0
-        
+
         if self.referred_by_doctor:
             doctor = self.referred_by_doctor
-            
+
             # Calculate incentive for each diagnosis type
             for bdt in bill_diagnosis_types:
                 category = bdt.diagnosis_type.category
                 price = bdt.price_at_time
-                
+
                 # Get doctor's percentage for this category dynamically
                 try:
                     category_percentage = doctor.category_percentages.get(category=category)
@@ -375,10 +375,10 @@ class Bill(models.Model):
                 except DoctorCategoryPercentage.DoesNotExist:
                     # Default to 0 if no percentage is set for this category
                     percent = 0
-                
+
                 diagnosis_incentive = (price * percent) // 100
                 total_incentive += diagnosis_incentive
-            
+
             # Apply discounts to the total incentive
             if total_amount == paid + center_disc or (doctor_disc == 0 and center_disc > 0):
                 self.incentive_amount = total_incentive
@@ -388,11 +388,11 @@ class Bill(models.Model):
                 self.incentive_amount = total_incentive
         else:
             self.incentive_amount = 0
-        
+
         # Validate bill status with updated total
         paid = int(self.paid_amount or 0)
         bill_status = self.bill_status
-        
+
         if bill_status == 'Fully Paid' and self.total_amount != paid + center_disc + doctor_disc:
             raise ValidationError({
                 'paid_amount': f"Total amount ({self.total_amount}) must be equal to paid ({paid}) + center discount ({center_disc}) + doctor discount ({doctor_disc}) for a fully paid bill."
@@ -401,10 +401,10 @@ class Bill(models.Model):
             raise ValidationError({
                 'paid_amount': f"For a partially paid bill, total amount ({self.total_amount}) must be greater than paid ({paid}) + discounts ({center_disc + doctor_disc})."
             })
-        
+
         # Save with updated totals
         super(Bill, self).save(update_fields=['total_amount', 'incentive_amount', 'franchise_name'])
-        
+
     def __str__(self):
         doctor_name = "No Doctor"
         if self.referred_by_doctor:
@@ -528,5 +528,5 @@ class SampleTestReport(models.Model):
                 os.remove(self.sample_report_file.path)
             except Exception as e:
                 print(f"Failed to delete report file: {e}")
-        
+
         super().delete(*args, **kwargs)

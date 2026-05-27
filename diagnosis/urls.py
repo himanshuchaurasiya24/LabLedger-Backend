@@ -1,5 +1,22 @@
 from rest_framework.routers import DefaultRouter
-from .views import *
+from .views import (
+                    BillChartStatsViewSet,
+                    BillGrowthStatsView,
+                    CenterAuditLogListView,
+                    DiagnosisCategoryViewSet,
+                    DiagnosisTypeViewSet,
+                    DoctorBillGrowthStatsView,
+                    DoctorIncentiveStatsView,
+                    DoctorViewSet,
+                    FlexibleIncentiveReportView,
+                    FranchiseNameViewSet,
+                    PatientReportViewset,
+                    PendingReportViewSet,
+                    ReferralStatsViewSet,
+                    ReportQuotaSummaryView,
+                    SampleTestReportViewSet,
+                    BillViewset
+)
 from django.urls import path, include
 from all_urls import (
     DIAG_AUDIT_LOGS,
@@ -35,7 +52,7 @@ router.register(DIAG_CATEGORIES_ROUTER, DiagnosisCategoryViewSet, basename='cate
 
 
 urlpatterns = [
-    path('', include(router.urls)), 
+    path('', include(router.urls)),
     path(DIAG_AUDIT_LOGS, CenterAuditLogListView.as_view(), name='center-audit-logs'),
     path(DIAG_REPORT_QUOTA_SUMMARY, ReportQuotaSummaryView.as_view(), name='report-quota-summary'),
     path(DIAG_DOCTOR_INCENTIVES, DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),

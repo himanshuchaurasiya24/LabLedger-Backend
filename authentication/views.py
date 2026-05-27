@@ -15,7 +15,7 @@ from authentication.serializers import (
     StaffAccountSerializer,
     UserPasswordChangeSerializer
 )
-from center_detail.serializers import *
+from center_detail.serializers import ActiveSubscription, ActiveSubscriptionSerializer, CenterDetail, CenterDetailListSerializer, CenterDetailSerializer, CenterDetailTokenSerializer, MinimalCenterDetailSerializer, SubscriptionPlan, SubscriptionPlanSerializer, date, serializers, timedelta, transaction
 from diagnosis.views import CenterDetailFilterMixin, IsAdminUser
 from diagnosis.models import AuditLog
 
@@ -51,7 +51,7 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        
+
         if user.is_admin:
             return super().get_queryset()
         else:
@@ -74,7 +74,7 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         target_user = self.get_object()
         if not user.is_admin and user != target_user:
             return Response({"error": "You do not have permission to update other user details."}, status=status.HTTP_403_FORBIDDEN)
-        
+
         kwargs['partial'] = True
         try:
             return super().update(request, *args, **kwargs)
@@ -155,7 +155,7 @@ class StaffAccountViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         target_user = self.get_object()
         requesting_user = request.user
         serializer = None
-        
+
         if requesting_user.is_admin:
             serializer = AdminPasswordResetSerializer(data=request.data)
         elif requesting_user == target_user:
@@ -227,11 +227,11 @@ class ValidateTokenView(APIView):
 
     def get(self, request):
         user = request.user
-        
+
         # Check if the user is locked and return 403 Forbidden
         if user.is_locked:
             return Response(
-                {"detail": "User account is locked."}, 
+                {"detail": "User account is locked."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -247,7 +247,7 @@ class ValidateTokenView(APIView):
         center_data = None
         if center:
             center_data = CenterDetailTokenSerializer(center).data
-            
+
         return Response({
             "success": True,
             "is_admin": user.is_admin,

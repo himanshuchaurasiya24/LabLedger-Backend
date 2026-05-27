@@ -12,12 +12,39 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from center_detail.models import get_free_plan
 from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
-from .models import *
-from .serializers import *
-from .filters import *
+from .models import (
+    AuditLog,
+    Bill,
+    DiagnosisCategory,
+    DiagnosisType,
+    Doctor,
+    FranchiseName,
+    PatientReport,
+    SampleTestReport,
+)
+from .serializers import (
+    AuditLogSerializer,
+    BillSerializer,
+    DiagnosisCategorySerializer,
+    DiagnosisTypeSerializer,
+    DoctorSerializer,
+    FranchiseNameSerializer,
+    IncentiveBillSerializer,
+    IncentiveDoctorSerializer,
+    MinimalBillSerializerForPendingReports,
+    PatientReportSerializer,
+    SampleTestReportSerializer,
+)
+from .filters import (
+                       BillFilter,
+                       DiagnosisTypeFilter,
+                       DoctorFilter,
+                       PatientReportFilter,
+                       SampleTestReportFilter,
+                       )
 from .pagination import StandardResultsSetPagination
-from .models import AuditLog
 
 MB_BYTES = 1024 * 1024
 
@@ -283,7 +310,7 @@ class DiagnosisTypeViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-    
+
     # ✅ REFACTORED: Handles assigning the center_detail automatically.
     def perform_create(self, serializer):
         instance = serializer.save(center_detail=self.request_detail)
@@ -343,7 +370,7 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-    
+
     def perform_create(self, serializer):
         """
         Automatically associate the new FranchiseName with the logged-in user's center.
@@ -391,7 +418,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
-    
+
     def get_permissions(self):
         """
         Allow non-admin users to create, list, retrieve.
@@ -402,7 +429,7 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-    
+
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = BillFilter
@@ -473,7 +500,7 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     serializer_class = PatientReportSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
-    
+
     def get_permissions(self):
         """
         Allow non-admin users to create, list, retrieve.
@@ -484,7 +511,7 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
-    
+
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = PatientReportFilter
     search_fields = ['bill__patient_name', 'bill__bill_number']
@@ -497,7 +524,7 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         queryset = super().get_queryset()
         bill_id = self.request.query_params.get('bill')
         if bill_id is not None:
-            queryset = queryset.filter(bill__id=bill_id)        
+            queryset = queryset.filter(bill__id=bill_id)
         return queryset.order_by('-id')
 
     def perform_create(self, serializer):
@@ -519,7 +546,7 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
             details=f"Created patient report for bill {instance.bill.bill_number}",
             request=self.request,
         )
-        
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -580,7 +607,7 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         return super().get_queryset().order_by('-id')
-    
+
     def perform_create(self, serializer):
         center_detail = self.request_detail
         projected_usage = _sample_report_projected_usage_bytes(center_detail, serializer)
@@ -599,7 +626,7 @@ class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
             details=f"Created sample report {instance.diagnosis_name}",
             request=self.request,
         )
-        
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -736,7 +763,7 @@ class BillChartStatsViewSet(viewsets.ViewSet):
         end_of_month = today.replace(day=end_of_month_day)
         start_of_year = today.replace(month=1, day=1)
         end_of_year = today.replace(month=12, day=31)
-        
+
         data = {
             "this_week": get_chart_stats(start_of_week, end_of_week),
             "this_month": get_chart_stats(start_of_month, end_of_month),
@@ -748,10 +775,14 @@ class DoctorBillGrowthStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
     def get_quarter_range(self, year, quarter):
-        if quarter == 1: return date(year, 1, 1), date(year, 3, 31)
-        elif quarter == 2: return date(year, 4, 1), date(year, 6, 30)
-        elif quarter == 3: return date(year, 7, 1), date(year, 9, 30)
-        else: return date(year, 10, 1), date(year, 12, 31)
+        if quarter == 1:
+            return date(year, 1, 1), date(year, 3, 31)
+        elif quarter == 2:
+            return date(year, 4, 1), date(year, 6, 30)
+        elif quarter == 3:
+            return date(year, 7, 1), date(year, 9, 30)
+        else:
+            return date(year, 10, 1), date(year, 12, 31)
 
     def get_month_range(self, year, month):
         first_day = date(year, month, 1)
@@ -811,10 +842,14 @@ class BillGrowthStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
 
     def get_quarter_range(self, year, quarter):
-        if quarter == 1: return date(year, 1, 1), date(year, 3, 31)
-        elif quarter == 2: return date(year, 4, 1), date(year, 6, 30)
-        elif quarter == 3: return date(year, 7, 1), date(year, 9, 30)
-        else: return date(year, 10, 1), date(year, 12, 31)
+        if quarter == 1:
+            return date(year, 1, 1), date(year, 3, 31)
+        elif quarter == 2:
+            return date(year, 4, 1), date(year, 6, 30)
+        elif quarter == 3:
+            return date(year, 7, 1), date(year, 9, 30)
+        else:
+            return date(year, 10, 1), date(year, 12, 31)
 
     def get_month_range(self, year, month):
         first_day = date(year, month, 1)
@@ -904,7 +939,7 @@ class DoctorIncentiveStatsView(APIView):
         first_curr_month = today.replace(day=1)
         _, last_day_num = monthrange(today.year, today.month)
         last_curr_month = today.replace(day=last_day_num)
-        
+
         last_prev_month = first_curr_month - timedelta(days=1)
         first_prev_month = last_prev_month.replace(day=1)
 
@@ -922,7 +957,7 @@ class DoctorIncentiveStatsView(APIView):
         else: # Quarter 4
             first_curr_quarter, last_curr_quarter = date(today.year, 10, 1), date(today.year, 12, 31)
             first_prev_quarter, last_prev_quarter = date(today.year, 7, 1), date(today.year, 9, 30)
-            
+
         # Year Ranges
         first_curr_year, last_curr_year = date(today.year, 1, 1), date(today.year, 12, 31)
         first_prev_year, last_prev_year = date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)
@@ -940,7 +975,7 @@ class DoctorIncentiveStatsView(APIView):
         """Helper to perform the incentive aggregation on a queryset."""
         total_incentive_data = qs.aggregate(total=Sum('incentive_amount', default=0))
         total_bills = qs.values('id').distinct().count()
-        
+
         breakdown_data = qs.values('bill_diagnosis_types__diagnosis_type__category__name').annotate(
             category_total=Sum('incentive_amount')
         ).order_by()
@@ -980,12 +1015,12 @@ class DoctorIncentiveStatsView(APIView):
         today = now().date()
         # ✅ FIXED THE TYPO HERE (get_date_ranges is now plural)
         date_ranges = self.get_date_ranges(today)
-        
+
         response_data = {}
         for period, (start_date, end_date) in date_ranges.items():
             period_qs = base_qs.filter(date_of_bill__date__range=(start_date, end_date))
             response_data[period] = self.aggregate_incentives(period_qs)
-            
+
         return Response(response_data)
 
 class FlexibleIncentiveReportView(APIView):
@@ -995,7 +1030,7 @@ class FlexibleIncentiveReportView(APIView):
     def get(self, request, format=None):
         start_date_str = request.query_params.get('start_date')
         end_date_str = request.query_params.get('end_date')
-        
+
         if start_date_str and end_date_str:
             try:
                 start_date = date.fromisoformat(start_date_str)
@@ -1021,13 +1056,13 @@ class FlexibleIncentiveReportView(APIView):
 
         if doctor_ids:
             base_qs = base_qs.filter(referred_by_doctor_id__in=doctor_ids)
-        
+
         if franchise_ids:
             base_qs = base_qs.filter(franchise_name_id__in=franchise_ids)
-            
+
         if diagnosis_type_ids:
             base_qs = base_qs.filter(diagnosis_types__id__in=diagnosis_type_ids).distinct()
-        
+
         if bill_statuses:
             status_query = Q()
             for status in bill_statuses:
@@ -1039,13 +1074,14 @@ class FlexibleIncentiveReportView(APIView):
         final_bills = base_qs.select_related(
             'referred_by_doctor', 'franchise_name'
         ).order_by('referred_by_doctor__first_name', 'referred_by_doctor__last_name')
+        # ).order_by('date_of_bill')
 
         response_data = []
         for doctor, bills_iterator in groupby(final_bills, key=lambda bill: bill.referred_by_doctor):
-            
+
             doctor_bills = list(bills_iterator)
             total_incentive = sum(bill.incentive_amount for bill in doctor_bills)
-            
+
 
             serialized_doctor = IncentiveDoctorSerializer(doctor).data
             serialized_bills = IncentiveBillSerializer(doctor_bills, many=True).data
@@ -1055,11 +1091,11 @@ class FlexibleIncentiveReportView(APIView):
             if serialized_bills:
                 response_data.append({
                     # The full doctor model is now in a nested object
-                    "doctor": serialized_doctor, 
+                    "doctor": serialized_doctor,
                     "total_incentive": total_incentive,
                     "bills": serialized_bills
                 })
-            
+
             # 👆 --- MODIFICATIONS END HERE --- 👆
 
         return Response(response_data)
@@ -1096,14 +1132,14 @@ class DiagnosisCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = DiagnosisCategorySerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsUserNotLocked, IsSubscriptionActive]
-    
+
     def get_queryset(self):
         # Categories are global, not per-center
         # Order by name alphabetically
         return DiagnosisCategory.objects.filter(
             is_active=True
         ).order_by('name')
-    
+
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsUserNotLocked(), IsSubscriptionActive(), IsAdminUser()]

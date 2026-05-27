@@ -1,10 +1,8 @@
 
 
-from django.contrib import admin
 from authentication.admin import custom_admin_site
 from django.urls import path, include
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView
 )
@@ -12,7 +10,12 @@ from rest_framework_simplejwt.views import (
 from django.conf import settings
 from django.conf.urls.static import static
 
-from authentication.views import *
+from authentication.views import (
+    AppInfoView,
+    CustomTokenObtainPairView,
+    ValidateTokenView,
+    health_check
+    )
 from all_urls import (
     ROOT_ADMIN,
     ROOT_APP_INFO,
