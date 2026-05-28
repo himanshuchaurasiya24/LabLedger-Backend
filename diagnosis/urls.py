@@ -15,7 +15,8 @@ from .views import (
                     ReferralStatsViewSet,
                     ReportQuotaSummaryView,
                     SampleTestReportViewSet,
-                    BillViewset
+                    BillViewset,
+                    bill_message_report_view,
 )
 from django.urls import path, include
 from all_urls import (
@@ -25,6 +26,7 @@ from all_urls import (
     DIAG_BILLS_GROWTH_STATS,
     DIAG_CATEGORIES_ROUTER,
     DIAG_DIAGNOSIS_TYPE_ROUTER,
+    DIAG_BILL_MESSAGE_REPORT,
     DIAG_DOCTOR_GROWTH_STATS,
     DIAG_DOCTOR_INCENTIVES,
     DIAG_DOCTOR_ROUTER,
@@ -53,6 +55,7 @@ router.register(DIAG_CATEGORIES_ROUTER, DiagnosisCategoryViewSet, basename='cate
 
 urlpatterns = [
     path('', include(router.urls)),
+    path(DIAG_BILL_MESSAGE_REPORT, bill_message_report_view, name='bill-message-report'),
     path(DIAG_AUDIT_LOGS, CenterAuditLogListView.as_view(), name='center-audit-logs'),
     path(DIAG_REPORT_QUOTA_SUMMARY, ReportQuotaSummaryView.as_view(), name='report-quota-summary'),
     path(DIAG_DOCTOR_INCENTIVES, DoctorIncentiveStatsView.as_view(), name='doctor-incentive-stats'),

@@ -1,6 +1,5 @@
 import os
 from rest_framework import serializers
-from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from authentication.serializers import MinimalStaffAccountSerializer
@@ -23,7 +22,7 @@ class DoctorCategoryPercentageSerializer(serializers.ModelSerializer):
     """Serializer for doctor category percentages"""
     category_name = serializers.CharField(source='category.name', read_only=True)
     percentage = serializers.IntegerField(required=False, default=0)
-    
+
     class Meta:
         model = DoctorCategoryPercentage
         fields = ['id', 'category', 'category_name', 'percentage']
@@ -32,7 +31,7 @@ class DoctorCategoryPercentageSerializer(serializers.ModelSerializer):
 class MinimalDiagnosisTypeSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(read_only=True)  # Explicitly serialize as ID
     category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
-    
+
     class Meta:
         model = DiagnosisType
         fields = ['id', 'name', 'category', 'category_name', 'price']
@@ -112,11 +111,11 @@ class DiagnosisTypeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'name': 'This diagnosis type already exists in your center.'
             })
-            
+
         return attrs
 class DoctorSerializer(serializers.ModelSerializer):
     category_percentages = DoctorCategoryPercentageSerializer(many=True, required=False)
-    
+
     # Make old fields optional with default 0 for backward compatibility
     ultrasound_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
     pathology_percentage = serializers.IntegerField(required=False, allow_null=True, default=0)
@@ -128,17 +127,17 @@ class DoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = [
-            'id', 
-            'first_name', 
-            'last_name', 
-            'hospital_name', 
-            'address', 
-            'phone_number', 
-            'email', 
-            'ultrasound_percentage', 
-            'pathology_percentage', 
-            'ecg_percentage', 
-            'xray_percentage', 
+            'id',
+            'first_name',
+            'last_name',
+            'hospital_name',
+            'address',
+            'phone_number',
+            'email',
+            'ultrasound_percentage',
+            'pathology_percentage',
+            'ecg_percentage',
+            'xray_percentage',
             'franchise_lab_percentage',
             'others_percentage',
             'category_percentages',
@@ -147,7 +146,7 @@ class DoctorSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         category_percentages_data = validated_data.pop('category_percentages', [])
-        
+
         # Set defaults for old percentage fields if not provided
         validated_data.setdefault('ultrasound_percentage', 0)
         validated_data.setdefault('pathology_percentage', 0)
@@ -155,23 +154,23 @@ class DoctorSerializer(serializers.ModelSerializer):
         validated_data.setdefault('xray_percentage', 0)
         validated_data.setdefault('franchise_lab_percentage', 0)
         validated_data.setdefault('others_percentage', 0)
-        
+
         doctor = Doctor.objects.create(**validated_data)
-        
+
         # Create category percentages if provided
         for cat_perc_data in category_percentages_data:
             DoctorCategoryPercentage.objects.create(doctor=doctor, **cat_perc_data)
-        
+
         return doctor
-    
+
     def update(self, instance, validated_data):
         category_percentages_data = validated_data.pop('category_percentages', None)
-        
+
         # Update doctor fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
+
         # Update category percentages if provided
         if category_percentages_data is not None:
             # Delete existing category percentages
@@ -179,7 +178,7 @@ class DoctorSerializer(serializers.ModelSerializer):
             # Create new ones
             for cat_perc_data in category_percentages_data:
                 DoctorCategoryPercentage.objects.create(doctor=instance, **cat_perc_data)
-        
+
         return instance
 
     def validate(self, attrs):
@@ -192,7 +191,7 @@ class DoctorSerializer(serializers.ModelSerializer):
 
         # Build the queryset to check for duplicates.
         queryset = Doctor.objects.filter(
-            phone_number=phone_number, 
+            phone_number=phone_number,
             center_detail=user_center
         )
 
@@ -206,7 +205,7 @@ class DoctorSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'phone_number': 'A doctor with this phone number already exists in your center.'
             })
-            
+
         return attrs
 
 class FranchiseNameSerializer(serializers.ModelSerializer):
@@ -240,13 +239,13 @@ class FranchiseNameSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'franchise_name': 'This franchise name already exists in your center.'
             })
-            
+
         return attrs
 
 class BillDiagnosisTypeSerializer(serializers.ModelSerializer):
     """Serializer for the junction model"""
     diagnosis_type_detail = MinimalDiagnosisTypeSerializer(source='diagnosis_type', read_only=True)
-    
+
     class Meta:
         model = BillDiagnosisType
         fields = ['diagnosis_type', 'diagnosis_type_detail', 'price_at_time']
@@ -269,7 +268,7 @@ class BillSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
-    
+
     # --- Read-Only Fields (for output) ---
     diagnosis_types_output = serializers.SerializerMethodField(read_only=True)
     referred_by_doctor_output = MinimalDoctorSerializer(source="referred_by_doctor", read_only=True)
@@ -277,7 +276,6 @@ class BillSerializer(serializers.ModelSerializer):
     test_done_by = MinimalStaffAccountSerializer(read_only=True)
     center_detail = MinimalCenterDetailSerializer(read_only=True)
     match_reason = serializers.SerializerMethodField(read_only=True)
-    report_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Bill
@@ -285,26 +283,20 @@ class BillSerializer(serializers.ModelSerializer):
             'id', 'bill_number', 'date_of_test', 'patient_name', 'patient_age',
             'patient_sex', 'date_of_bill', 'bill_status', 'total_amount',
             'paid_amount', 'disc_by_center', 'disc_by_doctor', 'incentive_amount',
+            'is_message_sent',
             'diagnosis_types', 'referred_by_doctor', 'franchise_name',
             'diagnosis_types_output', 'referred_by_doctor_output', 'franchise_name_output',
-            'test_done_by', 'center_detail', 'match_reason', 'patient_phone_number', 'report_url'
+            'test_done_by', 'center_detail', 'match_reason', 'patient_phone_number'
         ]
         read_only_fields = (
             "bill_number", "test_done_by", "center_detail",
             "incentive_amount", "total_amount",
         )
-    
+
     def get_diagnosis_types_output(self, bill):
         """Get all diagnosis types for this bill with their details"""
         bill_diagnosis_types = bill.bill_diagnosis_types.all()
         return BillDiagnosisTypeSerializer(bill_diagnosis_types, many=True).data
-    
-    def get_report_url(self, bill):
-        report = bill.report.first()
-        if report and report.report_file:
-            request = self.context.get("request")
-            return request.build_absolute_uri(report.report_file.url)
-        return None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -321,23 +313,23 @@ class BillSerializer(serializers.ModelSerializer):
         """Validate that all diagnosis type IDs exist and belong to user's center"""
         if not value:
             raise serializers.ValidationError("At least one diagnosis type must be selected.")
-        
+
         user_center = self.context['request'].user.center_detail
         diagnosis_types = DiagnosisType.objects.filter(
             id__in=value,
             center_detail=user_center
         )
-        
+
         if diagnosis_types.count() != len(value):
             raise serializers.ValidationError("One or more diagnosis types are invalid or don't belong to your center.")
-        
+
         return value
 
     def validate(self, attrs):
         user = self.context['request'].user
         attrs['center_detail'] = user.center_detail
         attrs['test_done_by'] = user
-        
+
         # Check if any diagnosis type is Franchise Lab
         diagnosis_type_ids = attrs.get('diagnosis_types', [])
         if diagnosis_type_ids:
@@ -348,22 +340,22 @@ class BillSerializer(serializers.ModelSerializer):
             )
             # Check if franchise_name is required (any diagnosis type has franchise lab category)
             has_franchise_lab = diagnosis_types.filter(category__is_franchise_lab=True).exists()
-            
+
             if has_franchise_lab and not attrs.get('franchise_name'):
                 raise serializers.ValidationError({
                     'franchise_name': "A franchise name is required when 'Franchise Lab' diagnosis type is selected."
                 })
-        
+
         # Remove temporary keys before the serializer saves the data
         attrs.pop('center_detail')
         attrs.pop('test_done_by')
 
         return attrs
-    
+
     def create(self, validated_data):
         diagnosis_type_ids = validated_data.pop('diagnosis_types')
         user = self.context['request'].user
-        
+
         # Create the bill instance
         try:
             bill = Bill.objects.create(
@@ -375,75 +367,75 @@ class BillSerializer(serializers.ModelSerializer):
             raise DRFValidationError(
                 e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)}
             )
-        
+
         # Create BillDiagnosisType entries for each diagnosis type
         user_center = user.center_detail
         diagnosis_types = DiagnosisType.objects.filter(
             id__in=diagnosis_type_ids,
             center_detail=user_center
         )
-        
+
         for diagnosis_type in diagnosis_types:
             BillDiagnosisType.objects.create(
                 bill=bill,
                 diagnosis_type=diagnosis_type,
                 price_at_time=diagnosis_type.price
             )
-        
+
         # Calculate totals and incentive
         try:
             bill.calculate_totals_and_incentive()
         except DjangoValidationError as e:
             # Convert Django ValidationError to DRF ValidationError for proper API response
             raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
-        
+
         return bill
-    
+
     def update(self, instance, validated_data):
         diagnosis_type_ids = validated_data.pop('diagnosis_types', None)
-        
+
         user = self.context['request'].user
-        
+
         # Update diagnosis types FIRST (before save) so validation uses new totals
         if diagnosis_type_ids is not None:
             # Clear existing diagnosis types
             instance.bill_diagnosis_types.all().delete()
-            
+
             # Add new diagnosis types
             user_center = user.center_detail
             diagnosis_types = DiagnosisType.objects.filter(
                 id__in=diagnosis_type_ids,
                 center_detail=user_center
             )
-            
+
             for diagnosis_type in diagnosis_types:
                 BillDiagnosisType.objects.create(
                     bill=instance,
                     diagnosis_type=diagnosis_type,
                     price_at_time=diagnosis_type.price
                 )
-        
+
         # NOW update basic fields and save
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        
+
         instance.center_detail = user.center_detail
         instance.test_done_by = user
-        
+
         # Calculate totals BEFORE save so validation has correct total
         try:
             instance.calculate_totals_and_incentive()
         except DjangoValidationError as e:
             # Convert Django ValidationError to DRF ValidationError for proper API response
             raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
-        
+
         # Now save with correct totals - validation will pass
         try:
             instance.save()
         except DjangoValidationError as e:
             # Convert Django ValidationError to DRF ValidationError for proper API response
             raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else {'error': str(e)})
-        
+
         return instance
 class IncentiveDiagnosisTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -455,7 +447,7 @@ class IncentiveFranchiseNameSerializer(serializers.ModelSerializer):
         fields= ['franchise_name']
 class IncentiveDoctorSerializer (serializers.ModelSerializer):
     category_percentages = DoctorCategoryPercentageSerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = Doctor
         fields=['id', 'first_name','last_name','hospital_name', 'ultrasound_percentage', 'pathology_percentage', 'ecg_percentage', 'xray_percentage', 'franchise_lab_percentage', 'others_percentage', 'category_percentages']
@@ -474,23 +466,23 @@ class IncentiveBillSerializer(serializers.ModelSerializer):
             'patient_name',
             'patient_age',
             'patient_sex',
-            'patient_phone_number', 
+            'patient_phone_number',
             'diagnosis_types_output',
             'franchise_name',
             'date_of_bill',
             'bill_status',
             'total_amount',
             'paid_amount',
-            'disc_by_doctor',       
-            'disc_by_center',       
+            'disc_by_doctor',
+            'disc_by_center',
             'incentive_amount'
         ]
-    
+
     def get_diagnosis_types_output(self, obj):
         """Return list of diagnosis types with details for this bill"""
         bill_diagnosis_types = obj.bill_diagnosis_types.select_related('diagnosis_type').all()
         return BillDiagnosisTypeSerializer(bill_diagnosis_types, many=True).data
-        
+
 
 
 
@@ -536,7 +528,7 @@ class SampleTestReportSerializer(serializers.ModelSerializer):
         allowed_formats = ('.doc', '.docx', '.rtf', '.odt')
         if value.size > file_size_limit:
             raise serializers.ValidationError("File size cannot exceed 5 MB.")
-        
+
         file_extension = os.path.splitext(value.name)[1].lower()
         if file_extension not in allowed_formats:
             raise serializers.ValidationError(

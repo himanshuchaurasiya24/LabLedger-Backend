@@ -3,6 +3,8 @@ from django.db import models
 from django.forms import ValidationError
 from django.core.validators import RegexValidator
 # from django.utils.text import slugify
+from datetime import timedelta
+import secrets
 import uuid
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
@@ -253,6 +255,10 @@ class Bill(models.Model):
     )
     date_of_bill = models.DateTimeField(default=timezone.now)
     bill_status = models.CharField(choices=BILL_STATUS_CHOICES, max_length=15, default='Fully Paid')
+    is_message_sent = models.BooleanField(default=False)
+    message_link_token = models.CharField(max_length=64, null=True, blank=True, unique=True)
+    message_link_created_at = models.DateTimeField(null=True, blank=True)
+    message_link_used_at = models.DateTimeField(null=True, blank=True)
     total_amount = models.IntegerField(editable=False)
     paid_amount = models.IntegerField(blank=True, default=0)
     disc_by_center = models.IntegerField(default=0)
@@ -316,6 +322,18 @@ class Bill(models.Model):
 
         # Save the bill instance first
         super().save(*args, **kwargs)
+
+    def prepare_message_link(self):
+        self.message_link_token = secrets.token_urlsafe(32)
+        self.message_link_created_at = timezone.now()
+        self.message_link_used_at = None
+
+    def has_valid_message_link(self):
+        if not self.message_link_token or not self.message_link_created_at:
+            return False
+        if self.message_link_used_at:
+            return False
+        return timezone.now() <= self.message_link_created_at + timedelta(hours=6)
 
     def calculate_totals_and_incentive(self):
         """

@@ -3,6 +3,7 @@ from calendar import monthrange
 from itertools import groupby
 from django.db.models import Count, Q, Sum, Value
 from django.db.models.functions import Concat, TruncDate
+from django.http import FileResponse, HttpResponseGone
 from django.utils.timezone import now, make_aware, get_default_timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, status, generics
@@ -12,6 +13,8 @@ from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from center_detail.models import get_free_plan
 from center_detail.permissions import IsSubscriptionActive, IsUserNotLocked
 from .models import (
@@ -45,6 +48,8 @@ from .filters import (
                        SampleTestReportFilter,
                        )
 from .pagination import StandardResultsSetPagination
+from all_urls import DIAG_BILL_SEND_MESSAGE
+from all_urls import DIAG_PATIENT_REPORT_DOWNLOAD
 
 MB_BYTES = 1024 * 1024
 
@@ -495,6 +500,63 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
             request=self.request,
         )
 
+    @action(detail=True, methods=["post"], url_path=DIAG_BILL_SEND_MESSAGE)
+    def send_message(self, request, pk=None):
+        bill = self.get_object()
+        report = bill.report.first() if bill.report.exists() else None
+
+        bill.prepare_message_link()
+        bill.save(
+            update_fields=[
+                'message_link_token',
+                'message_link_created_at',
+                'message_link_used_at',
+            ]
+        )
+
+        secure_report_url = None
+        if report and report.report_file:
+            secure_report_url = request.build_absolute_uri(
+                reverse('bill-message-report', kwargs={'token': bill.message_link_token})
+            )
+
+        message_lines = [
+            f"LabLedger bill {bill.bill_number}",
+            f"Patient: {bill.patient_name}",
+            f"Amount: ₹{bill.total_amount}",
+            f"Status: {bill.bill_status}",
+        ]
+
+        if secure_report_url:
+            message_lines.append(f"Report: {secure_report_url}")
+
+        return Response({
+            'bill_id': bill.id,
+            'bill_number': bill.bill_number,
+            'patient_name': bill.patient_name,
+            'patient_phone_number': str(bill.patient_phone_number),
+            'secure_report_url': secure_report_url,
+            'message_text': '\n'.join(message_lines),
+        })
+
+
+def bill_message_report_view(request, token):
+    bill = get_object_or_404(Bill, message_link_token=token)
+
+    if not bill.has_valid_message_link():
+        return HttpResponseGone("This report link has expired or has already been used.")
+
+    report = bill.report.first()
+    if not report or not report.report_file:
+        raise DRFValidationError({"detail": "Report file is not available."})
+
+    bill.message_link_used_at = now()
+    bill.save(update_fields=['message_link_used_at'])
+
+    report_file = report.report_file.open('rb')
+    filename = report.report_file.name.rsplit('/', 1)[-1]
+    return FileResponse(report_file, as_attachment=True, filename=filename)
+
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
     queryset = PatientReport.objects.all()
     serializer_class = PatientReportSerializer
@@ -511,6 +573,17 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         else:
             permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
         return [perm() for perm in permission_classes]
+
+    @action(detail=True, methods=["get"], url_path=DIAG_PATIENT_REPORT_DOWNLOAD)
+    def download(self, request, pk=None):
+        report = self.get_object()
+
+        if not report.report_file:
+            raise DRFValidationError({"detail": "Report file is not available."})
+
+        report_file = report.report_file.open('rb')
+        filename = report.report_file.name.rsplit('/', 1)[-1]
+        return FileResponse(report_file, as_attachment=True, filename=filename)
 
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = PatientReportFilter
