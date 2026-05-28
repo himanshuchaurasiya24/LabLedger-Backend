@@ -283,3 +283,19 @@ class LicenseView(APIView):
         return Response({
             "license_text": license_text
         })
+
+class DownloadGatewayAPKView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        from django.http import FileResponse, Http404
+        import os
+        from django.conf import settings
+        
+        apk_path = os.path.join(settings.BASE_DIR, 'private_assets', 'local_sms_gateway.apk')
+        
+        if not os.path.exists(apk_path):
+            raise Http404("Gateway APK not found on server.")
+            
+        return FileResponse(open(apk_path, 'rb'), as_attachment=True, filename='local_sms_gateway.apk')

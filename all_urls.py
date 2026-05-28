@@ -22,6 +22,7 @@ AUTH_LOGOUT = "logout/"
 AUTH_LICENSE = "license/"
 AUTH_STAFF_ROUTER = "staff"
 AUTH_RESET_PASSWORD_SUFFIX = "reset_password/"
+AUTH_LOCAL_SMS_GATEWAY_APK = "local-sms-gateway-apk/"
 
 # center_detail/urls.py
 CENTER_DETAIL_ROUTER = "center-detail"
@@ -60,6 +61,7 @@ API_DIAGNOSIS_BILL_GROWTH_STATS = "/diagnosis/bills/growth-stats/"
 API_DIAGNOSIS_INCENTIVES = "/diagnosis/incentives/"
 API_DIAGNOSIS_REFERRAL_STAT = "/diagnosis/referral-stat/"
 API_DIAGNOSIS_REPORT_QUOTA_SUMMARY = "/diagnosis/report-quota-summary/"
+API_LOCAL_SMS_GATEWAY_APK = "/auth/local-sms-gateway-apk/"
 
 
 def api_center_detail_by_id(center_id: int) -> str:
