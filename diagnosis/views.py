@@ -520,23 +520,12 @@ class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
                 reverse('bill-message-report', kwargs={'token': bill.message_link_token})
             )
 
-        message_lines = [
-            f"LabLedger bill {bill.bill_number}",
-            f"Patient: {bill.patient_name}",
-            f"Amount: ₹{bill.total_amount}",
-            f"Status: {bill.bill_status}",
-        ]
-
-        if secure_report_url:
-            message_lines.append(f"Report: {secure_report_url}")
-
         return Response({
             'bill_id': bill.id,
             'bill_number': bill.bill_number,
             'patient_name': bill.patient_name,
             'patient_phone_number': str(bill.patient_phone_number),
             'secure_report_url': secure_report_url,
-            'message_text': '\n'.join(message_lines),
         })
 
 
