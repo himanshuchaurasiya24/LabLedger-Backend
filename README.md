@@ -5,18 +5,32 @@
 
 A modern desktop application built with **Flutter** and **Django REST Framework**, designed to streamline diagnostic report generation, handle multi-center operations, and manage staff incentives efficiently.
 
+👉 **To download the latest release of the LabLedger App, go to:** [https://github.com/himanshuchaurasiya24/LabLedger/releases](https://github.com/himanshuchaurasiya24/LabLedger/releases)
+
 ---
 
-## 🚀 Features
+## 🔑 Key Features
 
-- 📄 **Diagnostic Test Reports**: Generate and manage patient diagnostic test reports seamlessly.
-- 💰 **Staff Incentives**: Automatically calculate, track, and manage doctor and lab staff incentives.
-- 🔐 **Role-Based Access**: Granular control for Administrators, Doctors, and Lab Staff.
-- 🏢 **Multi-Center Management**: Manage multiple diagnostic centers, subscriptions, and quotas from a unified dashboard.
-- 💬 **Messaging Integrations**: Instantly notify patients and doctors using Local SMS Gateways or WhatsApp WebUI.
-- 📁 **PDF Export**: Export professional diagnostic reports directly to PDF.
-- 🖥️ **Cross-Platform**: Optimized beautiful UI for desktop platforms.
-- ⚙️ **Fast Backend**: REST API powered by Django and PostgreSQL.
+* **Comprehensive Bill & Report Management**
+  Easily create, view, and manage test reports and billing data.
+
+* **Advanced PDF Generation Engine**
+  Generate customized, professional Doctor Incentive reports with 3 dynamic layout options. Includes visual status indicators (e.g., automated red-coding for negative balances) and native OS file-save prompts.
+
+* **SMS Gateway Integration**
+  Integrated local SMS gateway for messaging, including an in-app securely authenticated prompt to download the required Gateway APK directly from your private server.
+
+* **Integrated Doctor & Patient Database**
+  Maintain accurate and searchable records of doctors and patients.
+
+* **Dynamic Dashboard with Analytics**
+  Visualize key metrics through interactive charts and summaries.
+
+* **Secure Authentication**
+  Uses **SimpleJWT** for token-based authentication and API security.
+
+* **Modern UI Design**
+  Clean, responsive Material 3 interface featuring a beautiful, fluid glassmorphism design language, adaptive layouts, and a professional color palette.
 
 ---
 
