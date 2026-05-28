@@ -8,15 +8,19 @@ import secrets
 import uuid
 from center_detail.models import CenterDetail
 from authentication.models import StaffAccount
+from django.conf import settings
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def sample_report_file_upload_path(instance, filename):
     extension = os.path.splitext(filename)[1]
     unique_filename = f"{uuid.uuid4()}{extension}"
     return os.path.join("sample_reports", unique_filename)
 def report_file_upload_path(instance, filename):
-    ext = filename.split('.')[-1]
-    filename = f"{instance.bill.bill_number}.{ext}"
+    ext = os.path.splitext(filename)[1]
+    filename = f"{instance.bill.bill_number}{ext}"
     return os.path.join('reports/', filename)
 
 def validate_age(value):
@@ -333,7 +337,8 @@ class Bill(models.Model):
             return False
         if self.message_link_used_at:
             return False
-        return timezone.now() <= self.message_link_created_at + timedelta(hours=6)
+        expiry_hours = getattr(settings, 'REPORT_LINK_EXPIRY_HOURS', 6)
+        return timezone.now() <= self.message_link_created_at + timedelta(hours=expiry_hours)
 
     def calculate_totals_and_incentive(self):
         """
@@ -434,7 +439,9 @@ class PatientReport(models.Model):
     report_file = models.FileField(upload_to=report_file_upload_path, blank=False, null=False)
     center_detail = models.ForeignKey(CenterDetail, on_delete=models.CASCADE, related_name="center_detail_report")
     def __str__(self):
-        return f"{self.bill.date_of_bill.strftime('%d-%m-%Y')} Report for {self.bill.patient_name} Ref by Dr. {self.bill.referred_by_doctor.first_name} {self.bill.referred_by_doctor.last_name}"
+        ref_doc = self.bill.referred_by_doctor
+        doc_name = f"Dr. {ref_doc.first_name} {ref_doc.last_name}" if ref_doc else "No Doctor"
+        return f"{self.bill.date_of_bill.strftime('%d-%m-%Y')} Report for {self.bill.patient_name} Ref by {doc_name}"
 
     def save(self, *args, **kwargs):
         if self.report_file:
@@ -450,7 +457,7 @@ class PatientReport(models.Model):
                     try:
                         os.remove(report.report_file.path)
                     except Exception as e:
-                        print(f"Failed to delete existing report file: {e}")
+                        logger.error(f"Failed to delete existing report file: {e}")
                 report.delete()
 
         super().save(*args, **kwargs)
@@ -460,7 +467,7 @@ class PatientReport(models.Model):
         if not self.report_file:
             raise ValidationError("A report file is required.")
 
-        file_size_limit = 5 * 1024 * 1024  # 5 MB size limit
+        file_size_limit = getattr(settings, 'MAX_UPLOAD_SIZE_MB', 5) * 1024 * 1024
         allowed_formats = ('.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.odt')
 
         if self.report_file.size > file_size_limit:
@@ -475,7 +482,7 @@ class PatientReport(models.Model):
             try:
                 os.remove(self.report_file.path)
             except Exception as e:
-                print(f"Failed to delete report file: {e}")
+                logger.error(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
 
@@ -498,7 +505,7 @@ class SampleTestReport(models.Model):
     )
 
     class Meta:
-        unique_together = ('category', 'diagnosis_name')
+        unique_together = ('center_detail', 'category', 'diagnosis_name')
 
     def __str__(self):
         return f"{self.diagnosis_name} - {self.category} - {self.center_detail.center_name}"
@@ -527,7 +534,7 @@ class SampleTestReport(models.Model):
         if not self.sample_report_file:
             raise ValidationError("A sample report file is required.")
 
-        file_size_limit = 5 * 1024 * 1024  # 5 MB limit
+        file_size_limit = getattr(settings, 'MAX_UPLOAD_SIZE_MB', 5) * 1024 * 1024
         allowed_formats = ('.doc', '.docx', '.rtf', '.odt')
 
         if self.sample_report_file.size > file_size_limit:
@@ -545,6 +552,6 @@ class SampleTestReport(models.Model):
             try:
                 os.remove(self.sample_report_file.path)
             except Exception as e:
-                print(f"Failed to delete report file: {e}")
+                logger.error(f"Failed to delete report file: {e}")
 
         super().delete(*args, **kwargs)
