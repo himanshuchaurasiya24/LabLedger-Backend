@@ -235,7 +235,7 @@ class IsAdminUser(permissions.BasePermission):
 
 # --- Model ViewSets ---
 class DoctorViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Doctor.objects.all()
+    queryset = Doctor.objects.prefetch_related('category_percentages__category').all()
     serializer_class = DoctorSerializer
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]
@@ -419,7 +419,9 @@ class FranchiseNameViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
         )
 
 class BillViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = Bill.objects.all()
+    queryset = Bill.objects.select_related(
+        'referred_by_doctor', 'franchise_name', 'test_done_by', 'center_detail'
+    ).prefetch_related('bill_diagnosis_types__diagnosis_type__category').all()
     serializer_class = BillSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
@@ -547,7 +549,7 @@ def bill_message_report_view(request, token):
     return FileResponse(report_file, as_attachment=True, filename=filename)
 
 class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = PatientReport.objects.all()
+    queryset = PatientReport.objects.select_related('bill__referred_by_doctor', 'center_detail').all()
     serializer_class = PatientReportSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated, IsUserNotLocked, IsSubscriptionActive]
@@ -650,7 +652,7 @@ class PatientReportViewset(CenterDetailFilterMixin, viewsets.ModelViewSet):
         )
 
 class SampleTestReportViewSet(CenterDetailFilterMixin, viewsets.ModelViewSet):
-    queryset = SampleTestReport.objects.all()
+    queryset = SampleTestReport.objects.select_related('center_detail').all()
     serializer_class = SampleTestReportSerializer
     authentication_classes = [JWTAuthentication]
     filter_backends = [DjangoFilterBackend, SearchFilter]

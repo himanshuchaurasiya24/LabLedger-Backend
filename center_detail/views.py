@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import permissions, viewsets
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import ActiveSubscription, CenterDetail, SubscriptionPlan
@@ -74,9 +75,11 @@ class ActiveSubscriptionViewSet(viewsets.ModelViewSet):
 class SubscriptionPlanContextLookupView(APIView):
     """
     Returns minimal plan context for login-time renewal UI.
+    Throttled to prevent User Enumeration attacks.
     """
-
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'subscription_lookup'
 
     def post(self, request):
         identifier = (request.data.get("username") or "").strip()

@@ -1,4 +1,5 @@
 import os
+from django.conf import settings
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -502,10 +503,11 @@ class PatientReportSerializer(serializers.ModelSerializer):
             self.fields['bill'].queryset = Bill.objects.filter(center_detail=user_center)
 
     def validate_report_file(self, value):
-        file_size_limit = 5 * 1024 * 1024  # 5 MB
+        max_mb = getattr(settings, 'MAX_UPLOAD_SIZE_MB', 5)
+        file_size_limit = max_mb * 1024 * 1024
         allowed_formats = ('.pdf', '.doc', '.docx', '.odt', '.jpg', '.jpeg', '.png')
         if value.size > file_size_limit:
-            raise serializers.ValidationError("File size cannot exceed 5 MB.")
+            raise serializers.ValidationError(f"File size cannot exceed {max_mb} MB.")
 
         file_extension = os.path.splitext(value.name)[1].lower()
         if file_extension not in allowed_formats:
@@ -524,10 +526,11 @@ class SampleTestReportSerializer(serializers.ModelSerializer):
         Custom validation for the uploaded file.
         This is the correct place for validation in DRF.
         """
-        file_size_limit = 5 * 1024 * 1024  # 5 MB
+        max_mb = getattr(settings, 'MAX_UPLOAD_SIZE_MB', 5)
+        file_size_limit = max_mb * 1024 * 1024
         allowed_formats = ('.doc', '.docx', '.rtf', '.odt')
         if value.size > file_size_limit:
-            raise serializers.ValidationError("File size cannot exceed 5 MB.")
+            raise serializers.ValidationError(f"File size cannot exceed {max_mb} MB.")
 
         file_extension = os.path.splitext(value.name)[1].lower()
         if file_extension not in allowed_formats:

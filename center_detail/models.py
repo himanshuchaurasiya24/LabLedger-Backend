@@ -57,7 +57,7 @@ class ActiveSubscription(models.Model):
     )
     subscription_plan = models.ForeignKey(
         SubscriptionPlan,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.PROTECT,
         related_name="active_subscriptions",
     )
     plan_activated_on = models.DateField(default=date.today)
