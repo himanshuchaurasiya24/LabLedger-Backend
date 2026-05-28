@@ -156,6 +156,23 @@ SIMPLE_JWT = {
 
 MINIMUM_APP_VERSION = os.environ.get('MINIMUM_APP_VERSION', '2.0.0')
 
+# Report Expiry and Upload Limits
+REPORT_LINK_EXPIRY_HOURS = _get_env_int('REPORT_LINK_EXPIRY_HOURS', 6)
+MAX_UPLOAD_SIZE_MB = _get_env_int('MAX_UPLOAD_SIZE_MB', 10)
+DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+# Application URLs
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = _get_env_int('EMAIL_PORT', 587)
+EMAIL_USE_TLS = _get_env_bool('EMAIL_USE_TLS', True)
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
@@ -187,7 +204,7 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'INFO',
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
@@ -201,7 +218,7 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
-            'level': 'INFO',
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': True,
         },
         'django.request': {

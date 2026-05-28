@@ -15,16 +15,16 @@ custom_admin_site = CustomAdminSite(name='custom_admin')
 
 # --- Define the ModelAdmin for your custom user ---
 class StaffAccountAdmin(CenterFilteredAdminMixin, UserAdmin):
-    list_display = ('username', 'center_detail', 'first_name', 'last_name', 'email', 'is_admin', 'is_superuser')
+    list_display = ('username', 'center_detail', 'first_name', 'last_name', 'email', 'is_admin', 'is_superuser', 'has_accepted_license')
     ordering = ['center_detail', 'username']
-    list_filter = ('is_superuser', 'is_admin', 'is_locked', 'center_detail')
+    list_filter = ('is_superuser', 'is_admin', 'is_locked', 'has_accepted_license', 'center_detail')
     
     # Customizing the fieldsets to show 'is_admin' instead of 'is_staff'
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
         ('Permissions', {'fields': ('is_active', 'is_admin', 'is_superuser', 'groups', 'user_permissions')}),
-        ('Center Info & Status', {'fields': ('center_detail', 'phone_number', 'address', 'is_locked')}),
+        ('Center Info & Status', {'fields': ('center_detail', 'phone_number', 'address', 'is_locked', 'has_accepted_license')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (

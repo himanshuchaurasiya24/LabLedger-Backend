@@ -19,6 +19,7 @@ ROOT_TOKEN_VERIFY = "api/token/verify/"
 # authentication/urls.py
 AUTH_STAFFS = "staffs/"
 AUTH_LOGOUT = "logout/"
+AUTH_LICENSE = "license/"
 AUTH_STAFF_ROUTER = "staff"
 AUTH_RESET_PASSWORD_SUFFIX = "reset_password/"
 

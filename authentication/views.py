@@ -1,3 +1,4 @@
+import os
 from django.conf import settings
 from django.http import JsonResponse
 from rest_framework import viewsets, permissions, status
@@ -267,3 +268,18 @@ class AppInfoView(APIView):
         min_version = getattr(settings, 'MINIMUM_APP_VERSION', None)
         data = {"minimum_required_version": min_version}
         return Response(data)
+
+class LicenseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        try:
+            readme_path = os.path.join(settings.BASE_DIR, 'LICENSE')
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                license_text = f.read()
+        except Exception as e:
+            license_text = f"Could not load license file: {str(e)}"
+            
+        return Response({
+            "license_text": license_text
+        })
