@@ -26,7 +26,7 @@ class StaffAccountSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 
             'phone_number', 'address', 'is_admin', 'center_detail', 
-            'password', 'is_locked'
+            'password', 'is_locked', 'has_accepted_license'
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False}
@@ -244,6 +244,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['last_name'] = self.user.last_name
         data['id'] = self.user.id
         data['is_locked'] = self.user.is_locked
+        data['has_accepted_license'] = self.user.has_accepted_license
 
         center = getattr(self.user, "center_detail", None)
         if center:

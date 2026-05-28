@@ -256,6 +256,7 @@ class ValidateTokenView(APIView):
             "last_name": user.last_name,
             "id": user.id,
             "is_locked": user.is_locked,
+            "has_accepted_license": user.has_accepted_license,
             "center_detail": center_data,
         })
 

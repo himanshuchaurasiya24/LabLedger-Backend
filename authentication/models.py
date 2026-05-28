@@ -81,6 +81,10 @@ class StaffAccount(AbstractUser):
         default=False,
         help_text='If true, the user is locked out and cannot log in.'
     )
+    has_accepted_license = models.BooleanField(
+        default=False,
+        help_text='If true, the user has accepted the license agreement.'
+    )
     
     # ✅ Fields required by the custom token serializer
     failed_login_attempts = models.IntegerField(default=0)
