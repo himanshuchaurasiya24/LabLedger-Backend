@@ -536,19 +536,43 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();
             Write-Info "Step 1.5/4 -- Checking column compatibility between staging and main DB..."
             $env:PGPASSWORD = $DB_PASSWORD
 
-            $mainCols = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc @"
-    SELECT table_schema || '|' || table_name || '|' || column_name || '|' || is_nullable || '|' || coalesce(column_default,'')
-    FROM information_schema.columns
-    WHERE table_schema NOT IN ('pg_catalog','information_schema')
-    ORDER BY table_schema, table_name, ordinal_position;
-    "@ 2>&1
+            # Query main DB column metadata via a temp SQL file to avoid here-string parsing issues
+            $mainSqlLines = @(
+                "SELECT table_schema || '|' || table_name || '|' || column_name || '|' || is_nullable || '|' || coalesce(column_default,'')",
+                "FROM information_schema.columns",
+                "WHERE table_schema NOT IN ('pg_catalog','information_schema')",
+                "ORDER BY table_schema, table_name, ordinal_position;"
+            )
+            $mainSqlFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ([System.IO.Path]::GetRandomFileName() + '.sql'))
+            Set-Content -Path $mainSqlFile -Value $mainSqlLines -Encoding UTF8
 
-            $stagingCols = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $tempDb -tAc @"
-    SELECT table_schema || '|' || table_name || '|' || column_name
-    FROM information_schema.columns
-    WHERE table_schema NOT IN ('pg_catalog','information_schema')
-    ORDER BY table_schema, table_name, ordinal_position;
-    "@ 2>&1
+            $outFile = [System.IO.Path]::GetTempFileName()
+            $errFile = [System.IO.Path]::GetTempFileName()
+            $argList = @('-h', $DB_HOST, '-p', $DB_PORT, '-U', $DB_USER, '-d', $DB_NAME, '-tA', '-F', '|', '-f', $mainSqlFile)
+            $proc = Start-Process -FilePath $PsqlExe -ArgumentList $argList -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -Wait -PassThru
+            $mainCols = ''
+            try { $mainCols = Get-Content -Raw -Path $outFile -ErrorAction SilentlyContinue } catch {}
+            try { $err = Get-Content -Raw -Path $errFile -ErrorAction SilentlyContinue; if ($err) { $mainCols += "`n" + $err } } catch {}
+            Remove-Item -Path $mainSqlFile,$outFile,$errFile -ErrorAction SilentlyContinue
+
+            # Query staging DB column metadata similarly
+            $stgSqlLines = @(
+                "SELECT table_schema || '|' || table_name || '|' || column_name",
+                "FROM information_schema.columns",
+                "WHERE table_schema NOT IN ('pg_catalog','information_schema')",
+                "ORDER BY table_schema, table_name, ordinal_position;"
+            )
+            $stgSqlFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ([System.IO.Path]::GetRandomFileName() + '.sql'))
+            Set-Content -Path $stgSqlFile -Value $stgSqlLines -Encoding UTF8
+
+            $outFile = [System.IO.Path]::GetTempFileName()
+            $errFile = [System.IO.Path]::GetTempFileName()
+            $argList = @('-h', $DB_HOST, '-p', $DB_PORT, '-U', $DB_USER, '-d', $tempDb, '-tA', '-F', '|', '-f', $stgSqlFile)
+            $proc = Start-Process -FilePath $PsqlExe -ArgumentList $argList -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -Wait -PassThru
+            $stagingCols = ''
+            try { $stagingCols = Get-Content -Raw -Path $outFile -ErrorAction SilentlyContinue } catch {}
+            try { $err = Get-Content -Raw -Path $errFile -ErrorAction SilentlyContinue; if ($err) { $stagingCols += "`n" + $err } } catch {}
+            Remove-Item -Path $stgSqlFile,$outFile,$errFile -ErrorAction SilentlyContinue
 
             $mainMap = @{}
             foreach ($ln in ($mainCols -split "`n")) {
