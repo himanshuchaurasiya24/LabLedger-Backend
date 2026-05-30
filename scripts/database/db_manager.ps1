@@ -248,30 +248,76 @@ Sync-AppAccess
 
 function Reset-Sequences {
     Write-Step "Resetting primary-key sequences"
-    $Tables = @(
-        "django_migrations", "django_content_type", "auth_permission",
-        "auth_group", "auth_group_permissions", "django_admin_log",
-        "center_detail_subscriptionplan", "center_detail_centerdetail",
-        "center_detail_activesubscription",
-        "authentication_staffaccount", "authentication_staffaccount_groups",
-        "authentication_staffaccount_user_permissions",
-        "diagnosis_diagnosiscategory", "diagnosis_doctor",
-        "diagnosis_doctorcategorypercentage", "diagnosis_diagnosistype",
-        "diagnosis_auditlog", "diagnosis_franchisename",
-        "diagnosis_bill", "diagnosis_billdiagnosistype",
-        "diagnosis_patientreport", "diagnosis_sampletestreport"
-    )
     $env:PGPASSWORD = $DB_PASSWORD
-    foreach ($tbl in $Tables) {
-        $seq = "${tbl}_id_seq"
-        $exists = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME `
-            -tAc "SELECT 1 FROM pg_sequences WHERE sequencename='$seq';" 2>&1
-        if ($exists -match '1') {
-            $sql = "SELECT setval('$seq', COALESCE((SELECT MAX(id) FROM `"$tbl`"), 0) + 1, false);"
-            $val = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc $sql 2>&1
-            Write-Ok "Reset: $seq  (next = $($val.Trim()))"
-        }
+
+    $resetSql = @'
+DO $$
+DECLARE
+    sequence_row record;
+    next_value bigint;
+    reset_count integer := 0;
+BEGIN
+    PERFORM set_config(''lock_timeout'', ''5s'', true);
+
+    FOR sequence_row IN
+        SELECT
+            seq_ns.nspname AS sequence_schema,
+            seq.relname AS sequence_name,
+            tbl_ns.nspname AS table_schema,
+            tbl.relname AS table_name,
+            att.attname AS column_name
+        FROM pg_class seq
+        JOIN pg_depend dep
+            ON dep.objid = seq.oid
+           AND dep.deptype IN (''a'', ''i'')
+        JOIN pg_class tbl
+            ON tbl.oid = dep.refobjid
+        JOIN pg_namespace tbl_ns
+            ON tbl_ns.oid = tbl.relnamespace
+        JOIN pg_attribute att
+            ON att.attrelid = tbl.oid
+           AND att.attnum = dep.refobjsubid
+        JOIN pg_namespace seq_ns
+            ON seq_ns.oid = seq.relnamespace
+        WHERE seq.relkind = ''S''
+          AND tbl.relkind IN (''r'', ''p'')
+          AND tbl_ns.nspname NOT IN (''pg_catalog'', ''information_schema'')
+          AND seq_ns.nspname NOT IN (''pg_catalog'', ''information_schema'')
+        ORDER BY tbl_ns.nspname, tbl.relname, att.attname
+    LOOP
+        EXECUTE format(''LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE'', sequence_row.table_schema, sequence_row.table_name);
+        EXECUTE format(
+            ''SELECT COALESCE(MAX(%I), 0) + 1 FROM %I.%I'',
+            sequence_row.column_name,
+            sequence_row.table_schema,
+            sequence_row.table_name
+        ) INTO next_value;
+        EXECUTE format(
+            ''SELECT setval(%L, %s, false)'',
+            format(''%I.%I'', sequence_row.sequence_schema, sequence_row.sequence_name),
+            next_value
+        );
+        reset_count := reset_count + 1;
+    END LOOP;
+
+    RAISE NOTICE ''Reset % sequence(s).'', reset_count;
+END $$;
+'@
+
+    $resetOutput = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME `
+        -v ON_ERROR_STOP=1 -c $resetSql 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "Failed to reset primary-key sequences dynamically."
+        $resetOutput | ForEach-Object { Write-Host $_ }
+        exit 1
     }
+
+    if ($resetOutput) {
+        $resetOutput | ForEach-Object { Write-Host $_ }
+    }
+
+    Write-Ok "Primary-key sequences reset dynamically for all sequence-backed tables."
 }
 
 # ---------------------------------------------------------------------------
