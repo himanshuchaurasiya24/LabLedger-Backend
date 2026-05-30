@@ -47,11 +47,19 @@ A modern desktop application built with **Flutter** and **Django REST Framework*
 
 ## 🧩 Installation Instructions
 
-### Prerequisites
+### 1. Clone the repository (first)
+You should clone the backend repository before running any setup steps so all scripts resolve paths correctly.
+
+```bash
+git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
+cd LabLedger-Backend
+```
+
+### 2. Prerequisites
 - Python 3.10+
 - PostgreSQL Server installed and running
 
-### 1. Environment Variables Configuration
+### 3. Environment Variables Configuration
 You **must** create a `.env` file in the root directory (where `manage.py` is located) before creating the database user. Use the same value for `DB_PASSWORD` later when you run the database setup command.
 
 ```ini
@@ -101,7 +109,7 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
-### 2. Database Setup (PostgreSQL)
+### 4. Database Setup (PostgreSQL)
 If you do not have PostgreSQL installed, you must first download and install it from the [Official PostgreSQL Website](https://www.postgresql.org/download/).
 
 The setup scripts below create the PostgreSQL database and user required by LabLedger. They read `DB_PASSWORD` from your existing `.env` file, resolve the project root automatically, and prompt for the PostgreSQL `postgres` superuser password when needed.
@@ -126,13 +134,9 @@ bash ./scripts/setup_database.sh
 
 The script will create the database, sync the app user password from `.env`, and handle the schema grant when required.
 
-### 3. Backend Setup (Django)
+### 5. Backend Setup (Django)
 
 ```bash
-# Clone the repository
-git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
-cd LabLedger-Backend
-
 # Create and activate virtual environment
 python -m venv env
 # On Windows: env\Scripts\activate
@@ -142,7 +146,7 @@ python -m venv env
 pip install -r requirements.txt
 ```
 
-### 4. Run Migrations & Server
+### 6. Run Migrations & Server
 Once the `.env` file and PostgreSQL database are ready:
 
 ```bash
