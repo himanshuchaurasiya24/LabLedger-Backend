@@ -532,11 +532,77 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();
                         --no-owner -Fc $selectedFile 2>&1 | Out-Null
         Write-Ok "Dump restored to staging database."
 
+            # -- Pre-merge compatibility check --
+            Write-Info "Step 1.5/4 -- Checking column compatibility between staging and main DB..."
+            $env:PGPASSWORD = $DB_PASSWORD
+
+            $mainCols = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -tAc @"
+    SELECT table_schema || '|' || table_name || '|' || column_name || '|' || is_nullable || '|' || coalesce(column_default,'')
+    FROM information_schema.columns
+    WHERE table_schema NOT IN ('pg_catalog','information_schema')
+    ORDER BY table_schema, table_name, ordinal_position;
+    "@ 2>&1
+
+            $stagingCols = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $tempDb -tAc @"
+    SELECT table_schema || '|' || table_name || '|' || column_name
+    FROM information_schema.columns
+    WHERE table_schema NOT IN ('pg_catalog','information_schema')
+    ORDER BY table_schema, table_name, ordinal_position;
+    "@ 2>&1
+
+            $mainMap = @{}
+            foreach ($ln in ($mainCols -split "`n")) {
+                if ([string]::IsNullOrWhiteSpace($ln)) { continue }
+                $parts = $ln -split '\|',5
+                if ($parts.Count -lt 3) { continue }
+                $tbl = "$($parts[0]).$($parts[1])"
+                $col = $parts[2]
+                $isNullable = if ($parts.Count -ge 4) { $parts[3] } else { 'YES' }
+                $default = if ($parts.Count -ge 5) { $parts[4] } else { '' }
+                if (-not $mainMap.ContainsKey($tbl)) { $mainMap[$tbl] = @{} }
+                $mainMap[$tbl][$col] = @{ nullable = $isNullable; default = $default }
+            }
+
+            $stagingMap = @{}
+            foreach ($ln in ($stagingCols -split "`n")) {
+                if ([string]::IsNullOrWhiteSpace($ln)) { continue }
+                $parts = $ln -split '\|',3
+                if ($parts.Count -lt 3) { continue }
+                $tbl = "$($parts[0]).$($parts[1])"
+                $col = $parts[2]
+                if (-not $stagingMap.ContainsKey($tbl)) { $stagingMap[$tbl] = @{} }
+                $stagingMap[$tbl][$col] = $true
+            }
+
+            $problemFound = $false
+            foreach ($tbl in $mainMap.Keys) {
+                $mainColsForTbl = $mainMap[$tbl].Keys
+                $stagingColsForTbl = if ($stagingMap.ContainsKey($tbl)) { $stagingMap[$tbl].Keys } else { @() }
+                $missing = $mainColsForTbl | Where-Object { $stagingColsForTbl -notcontains $_ }
+                if ($missing.Count -gt 0) {
+                    foreach ($col in $missing) {
+                        $meta = $mainMap[$tbl][$col]
+                        if ($meta.nullable -eq 'NO' -and [string]::IsNullOrWhiteSpace($meta.default)) {
+                            Write-Warn "POTENTIAL MISMATCH: $tbl missing required column '$col' (NOT NULL, no default)"
+                            $problemFound = $true
+                        } else {
+                            Write-Info "Info: $tbl missing column '$col' (nullable=$($meta.nullable), default present?=$(-not [string]::IsNullOrWhiteSpace($meta.default)))"
+                        }
+                    }
+                }
+            }
+
+            if ($problemFound) {
+                Write-Warn "One or more tables have required columns in main DB that are missing in the staging DB. Merge may fail for these tables."
+            } else {
+                Write-Ok "Pre-merge compatibility check passed (no missing NOT NULL/no-default columns detected)."
+            }
+
         # -- Step 2: Export staging data as plain INSERT SQL --
         Write-Info "Step 2/4 -- Exporting staging data as INSERT statements ..."
         $env:PGPASSWORD = $DB_PASSWORD
         & $PgDumpExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $tempDb `
-                     --data-only --inserts -f $tempSql 2>&1 | Out-Null
+                 --data-only --inserts --column-inserts -f $tempSql 2>&1 | Out-Null
 
         if (-not (Test-Path $tempSql)) {
             Write-Fail "Failed to export INSERT SQL from staging database."

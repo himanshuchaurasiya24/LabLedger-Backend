@@ -502,9 +502,30 @@ WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" > /dev/null || true
 
         # Step 2: Export staging data as plain INSERT SQL
         info "Step 2/4 -- Exporting staging data as INSERT statements ..."
+
+        # -- Pre-merge compatibility check --
+        info "Step 1.5/4 -- Checking column compatibility between staging and main DB..."
+        tmp_main_cols=$(mktemp)
+        tmp_staging_cols=$(mktemp)
+
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tA -F '|' -c "SELECT table_schema||'|'||table_name||'|'||column_name||'|'||is_nullable||'|'||coalesce(column_default,'') FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name, ordinal_position;" > "$tmp_main_cols" 2>/dev/null || true
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$temp_db" -tA -F '|' -c "SELECT table_schema||'|'||table_name||'|'||column_name FROM information_schema.columns WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_schema, table_name, ordinal_position;" > "$tmp_staging_cols" 2>/dev/null || true
+
+        awk -F'|' 'NR==FNR { tbl=$1"."$2; col=$3; main[tbl SUBSEP col]=$4"|"$5; next } { tbl=$1"."$2; col=$3; st[tbl SUBSEP col]=1; next } END { problem=0; for (k in main) { split(k,arr,SUBSEP); tbl=arr[1]; col=arr[2]; split(main[k],m,"|"); nullable=m[1]; def=m[2]; if (!( (tbl SUBSEP col) in st )) { if (nullable=="NO" && def=="") { printf("POTENTIAL MISMATCH: %s missing required column %s (NOT NULL,no default)\n", tbl, col); problem=1 } else { printf("Info: %s missing column %s (nullable=%s, default_present=%s)\n", tbl, col, nullable, (def!=""?"yes":"no")) } } } if (problem==1) exit 2 }' "$tmp_main_cols" "$tmp_staging_cols"
+        awk_rc=$?
+        if [ $awk_rc -eq 2 ]; then
+            warn "One or more tables have required columns in main DB that are missing in the staging DB. Merge may fail for these tables."
+        elif [ $awk_rc -ne 0 ]; then
+            info "Compatibility check skipped or inconclusive (awk returned $awk_rc)."
+        else
+            ok "Pre-merge compatibility check passed (no missing NOT NULL/no-default columns detected)."
+        fi
+
+        rm -f "$tmp_main_cols" "$tmp_staging_cols"
+
         export PGPASSWORD="$DB_PASSWORD"
         "$PG_DUMP_EXE" -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$temp_db" \
-                       --data-only --inserts -f "$temp_sql" 2>/dev/null
+                       --data-only --inserts --column-inserts -f "$temp_sql" 2>/dev/null
 
         if [ ! -f "$temp_sql" ]; then
             fail "Failed to export INSERT SQL from staging database."
