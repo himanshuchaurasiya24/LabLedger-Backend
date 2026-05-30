@@ -104,37 +104,27 @@ DB_PORT=5432
 ### 2. Database Setup (PostgreSQL)
 If you do not have PostgreSQL installed, you must first download and install it from the [Official PostgreSQL Website](https://www.postgresql.org/download/).
 
-The commands below create the PostgreSQL database and user required by LabLedger. They read `DB_PASSWORD` from your existing `.env` file, so make sure step 1 is completed first.
+The setup scripts below create the PostgreSQL database and user required by LabLedger. They read `DB_PASSWORD` from your existing `.env` file, resolve the project root automatically, and prompt for the PostgreSQL `postgres` superuser password when needed.
 
 #### Windows (PowerShell)
 
-These commands do not require PostgreSQL to be added to the PATH environment variable. If your PostgreSQL version is not 18, replace `PostgreSQL\18` with your installed version.
+From the project root, run the PowerShell setup script:
 
 ```powershell
-$dbPassword = (Get-Content .env | Where-Object { $_ -match '^DB_PASSWORD=' } | Select-Object -First 1).Split('=', 2)[1].Trim().Trim('"').Trim("'")
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres -c "CREATE DATABASE labledger;" -c "CREATE USER labledger_user WITH PASSWORD '$dbPassword';" -c "GRANT ALL PRIVILEGES ON DATABASE labledger TO labledger_user;"
+& .\scripts\setup_database.ps1
 ```
 
-For PostgreSQL 15 or newer, also run:
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d labledger -c "GRANT ALL ON SCHEMA public TO labledger_user;"
-```
+The script will create the database, sync the app user password from `.env`, and handle the schema grant when required.
 
 #### Linux (Ubuntu/Debian)
 
-```bash
-set -a
-. ./.env
-set +a
-sudo -E env PGPASSWORD="$DB_PASSWORD" psql -d postgres -c "CREATE DATABASE labledger;" -c "CREATE USER labledger_user WITH PASSWORD '$DB_PASSWORD';" -c "GRANT ALL PRIVILEGES ON DATABASE labledger TO labledger_user;"
-```
-
-For PostgreSQL 15 or newer, also run:
+From the project root, run the Bash setup script:
 
 ```bash
-sudo -u postgres psql -d labledger -c "GRANT ALL ON SCHEMA public TO labledger_user;"
+bash ./scripts/setup_database.sh
 ```
+
+The script will create the database, sync the app user password from `.env`, and handle the schema grant when required.
 
 ### 3. Backend Setup (Django)
 
