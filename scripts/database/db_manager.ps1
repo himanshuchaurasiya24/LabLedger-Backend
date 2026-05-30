@@ -257,7 +257,7 @@ DECLARE
     next_value bigint;
     reset_count integer := 0;
 BEGIN
-    PERFORM set_config(''lock_timeout'', ''5s'', true);
+    PERFORM set_config('lock_timeout', '5s', true);
 
     FOR sequence_row IN
         SELECT
@@ -269,7 +269,7 @@ BEGIN
         FROM pg_class seq
         JOIN pg_depend dep
             ON dep.objid = seq.oid
-           AND dep.deptype IN (''a'', ''i'')
+           AND dep.deptype IN ('a', 'i')
         JOIN pg_class tbl
             ON tbl.oid = dep.refobjid
         JOIN pg_namespace tbl_ns
@@ -279,28 +279,28 @@ BEGIN
            AND att.attnum = dep.refobjsubid
         JOIN pg_namespace seq_ns
             ON seq_ns.oid = seq.relnamespace
-        WHERE seq.relkind = ''S''
-          AND tbl.relkind IN (''r'', ''p'')
-          AND tbl_ns.nspname NOT IN (''pg_catalog'', ''information_schema'')
-          AND seq_ns.nspname NOT IN (''pg_catalog'', ''information_schema'')
+                WHERE seq.relkind = 'S'
+                    AND tbl.relkind IN ('r', 'p')
+                    AND tbl_ns.nspname NOT IN ('pg_catalog', 'information_schema')
+                    AND seq_ns.nspname NOT IN ('pg_catalog', 'information_schema')
         ORDER BY tbl_ns.nspname, tbl.relname, att.attname
     LOOP
-        EXECUTE format(''LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE'', sequence_row.table_schema, sequence_row.table_name);
+        EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', sequence_row.table_schema, sequence_row.table_name);
         EXECUTE format(
-            ''SELECT COALESCE(MAX(%I), 0) + 1 FROM %I.%I'',
+            'SELECT COALESCE(MAX(%I), 0) + 1 FROM %I.%I',
             sequence_row.column_name,
             sequence_row.table_schema,
             sequence_row.table_name
         ) INTO next_value;
         EXECUTE format(
-            ''SELECT setval(%L, %s, false)'',
-            format(''%I.%I'', sequence_row.sequence_schema, sequence_row.sequence_name),
+            'SELECT setval(%L, %s, false)',
+            format('%I.%I', sequence_row.sequence_schema, sequence_row.sequence_name),
             next_value
         );
         reset_count := reset_count + 1;
     END LOOP;
 
-    RAISE NOTICE ''Reset % sequence(s).'', reset_count;
+    RAISE NOTICE 'Reset % sequence(s).', reset_count;
 END $$;
 '@
 
