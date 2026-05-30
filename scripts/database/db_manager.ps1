@@ -102,7 +102,7 @@ $DefaultEnvLines = @(
     "DB_ENGINE=django.db.backends.postgresql",
     "DB_NAME=labledger",
     "DB_USER=labledger_user",
-    "DB_PASSWORD=RandomPasswordForLabLedgerPostgreSQL",
+    "DB_PASSWORD=your_secure_db_password_here",
     "DB_HOST=localhost",
     "DB_PORT=5432"
 )
@@ -127,6 +127,11 @@ $DB_USER     = $EnvVars['DB_USER']
 $DB_PASSWORD = $EnvVars['DB_PASSWORD']
 $DB_HOST     = $EnvVars['DB_HOST']
 $DB_PORT     = $EnvVars['DB_PORT']
+
+if ([string]::IsNullOrWhiteSpace($DB_PASSWORD) -or $DB_PASSWORD -eq 'your_secure_db_password_here') {
+    Write-Fail "DB_PASSWORD is missing or still set to the placeholder value in .env. Update it before running this script."
+    exit 1
+}
 
 Write-Ok ".env loaded -- DB: $DB_NAME  User: $DB_USER  Host: ${DB_HOST}:${DB_PORT}"
 
@@ -200,7 +205,7 @@ function Invoke-AppSql {
     return $out
 }
 
-function Ensure-AppAccess {
+function Sync-AppAccess {
     Write-Step "STEP 5 -- Validating app DB credentials"
 
     $env:PGPASSWORD = $DB_PASSWORD
@@ -239,7 +244,7 @@ function Ensure-AppAccess {
     }
 }
 
-Ensure-AppAccess
+Sync-AppAccess
 
 function Reset-Sequences {
     Write-Step "Resetting primary-key sequences"

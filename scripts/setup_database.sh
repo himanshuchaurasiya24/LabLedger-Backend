@@ -110,7 +110,7 @@ USE_HTTPS=False
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=labledger
 DB_USER=labledger_user
-DB_PASSWORD=RandomPasswordForLabLedgerPostgreSQL
+DB_PASSWORD=your_secure_db_password_here
 DB_HOST=localhost
 DB_PORT=5432
 '
@@ -147,9 +147,14 @@ parse_env "$ENV_FILE"
 
 DB_NAME="${DB_NAME:-labledger}"
 DB_USER="${DB_USER:-labledger_user}"
-DB_PASSWORD="${DB_PASSWORD:-RandomPasswordForLabLedgerPostgreSQL}"
+DB_PASSWORD="${DB_PASSWORD:-}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
+
+if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "your_secure_db_password_here" ]; then
+    fail "DB_PASSWORD is missing or still set to the placeholder value in .env. Update it before running this script."
+    exit 1
+fi
 
 info "DB_NAME  : $DB_NAME"
 info "DB_USER  : $DB_USER"

@@ -51,36 +51,8 @@ A modern desktop application built with **Flutter** and **Django REST Framework*
 - Python 3.10+
 - PostgreSQL Server installed and running
 
-### 1. Database Setup (PostgreSQL)
-If you do not have PostgreSQL installed, you must first download and install it from the [Official PostgreSQL Website](https://www.postgresql.org/download/).
-
-Once installed, open your **SQL Shell (psql)** or **pgAdmin** and log in with your default `postgres` superuser credentials. Then, execute the following SQL commands to create the database and user matching your environment variables:
-
-```sql
-CREATE DATABASE labledger;
-CREATE USER labledger_user WITH PASSWORD 'your_secure_db_password_here';
-GRANT ALL PRIVILEGES ON DATABASE labledger TO labledger_user;
-```
-*Note: If you are using PostgreSQL 15 or newer, you may also need to grant schema permissions by running `\c labledger;` followed by `GRANT ALL ON SCHEMA public TO labledger_user;`*
-
-### 2. Backend Setup (Django)
-
-```bash
-# Clone the repository
-git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
-cd LabLedger-Backend
-
-# Create and activate virtual environment
-python -m venv env
-# On Windows: env\Scripts\activate
-# On Linux/Mac: source env/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Environment Variables Configuration
-You **must** create a `.env` file in the root directory (where `manage.py` is located) with the following variables before running the server:
+### 1. Environment Variables Configuration
+You **must** create a `.env` file in the root directory (where `manage.py` is located) before creating the database user. Use the same value for `DB_PASSWORD` later when you run the database setup command.
 
 ```ini
 # Core Settings
@@ -127,6 +99,57 @@ DB_USER=labledger_user
 DB_PASSWORD=your_secure_db_password_here
 DB_HOST=localhost
 DB_PORT=5432
+```
+
+### 2. Database Setup (PostgreSQL)
+If you do not have PostgreSQL installed, you must first download and install it from the [Official PostgreSQL Website](https://www.postgresql.org/download/).
+
+The commands below create the PostgreSQL database and user required by LabLedger. They read `DB_PASSWORD` from your existing `.env` file, so make sure step 1 is completed first.
+
+#### Windows (PowerShell)
+
+These commands do not require PostgreSQL to be added to the PATH environment variable. If your PostgreSQL version is not 18, replace `PostgreSQL\18` with your installed version.
+
+```powershell
+$dbPassword = (Get-Content .env | Where-Object { $_ -match '^DB_PASSWORD=' } | Select-Object -First 1).Split('=', 2)[1].Trim().Trim('"').Trim("'")
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres -c "CREATE DATABASE labledger;" -c "CREATE USER labledger_user WITH PASSWORD '$dbPassword';" -c "GRANT ALL PRIVILEGES ON DATABASE labledger TO labledger_user;"
+```
+
+For PostgreSQL 15 or newer, also run:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d labledger -c "GRANT ALL ON SCHEMA public TO labledger_user;"
+```
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+set -a
+. ./.env
+set +a
+sudo -E env PGPASSWORD="$DB_PASSWORD" psql -d postgres -c "CREATE DATABASE labledger;" -c "CREATE USER labledger_user WITH PASSWORD '$DB_PASSWORD';" -c "GRANT ALL PRIVILEGES ON DATABASE labledger TO labledger_user;"
+```
+
+For PostgreSQL 15 or newer, also run:
+
+```bash
+sudo -u postgres psql -d labledger -c "GRANT ALL ON SCHEMA public TO labledger_user;"
+```
+
+### 3. Backend Setup (Django)
+
+```bash
+# Clone the repository
+git clone https://github.com/himanshuchaurasiya24/LabLedger-Backend.git
+cd LabLedger-Backend
+
+# Create and activate virtual environment
+python -m venv env
+# On Windows: env\Scripts\activate
+# On Linux/Mac: source env/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
 ### 4. Run Migrations & Server
