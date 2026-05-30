@@ -366,10 +366,14 @@ BEGIN
 END $$;
 SQL
 
+sqlfile=$(mktemp)
+printf '%s' "$RESET_SQL" > "$sqlfile"
 reset_output=$(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" \
-    -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -c "$RESET_SQL" 2>&1)
+    -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f "$sqlfile" 2>&1)
+rc=$?
+rm -f "$sqlfile"
 
-if [ $? -ne 0 ]; then
+if [ $rc -ne 0 ]; then
     fail "Failed to reset primary-key sequences dynamically."
     printf '%s\n' "$reset_output"
     exit 1

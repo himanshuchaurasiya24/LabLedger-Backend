@@ -294,13 +294,19 @@ END $$;
 SQL
 )
 
+    local sqlfile
+    sqlfile=$(mktemp)
+    printf '%s' "$reset_sql" > "$sqlfile"
+
     local reset_output
     if ! reset_output=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
-        -v ON_ERROR_STOP=1 -c "$reset_sql" 2>&1); then
+        -v ON_ERROR_STOP=1 -f "$sqlfile" 2>&1); then
         fail "Failed to reset primary-key sequences dynamically."
         printf '%s\n' "$reset_output"
+        rm -f "$sqlfile"
         exit 1
     fi
+    rm -f "$sqlfile"
 
     if [ -n "$reset_output" ]; then
         printf '%s\n' "$reset_output"

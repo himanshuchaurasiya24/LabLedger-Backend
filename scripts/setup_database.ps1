@@ -397,18 +397,39 @@ BEGIN
 END $$;
 '@
 
-$resetOutput = & $PsqlExe -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME `
-    -v ON_ERROR_STOP=1 -c $resetSql 2>&1
+# Write the SQL to a temp file and run psql with -f to avoid argument-splitting of multiline SQL
+$sqlFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), ([System.IO.Path]::GetRandomFileName() + '.sql'))
+Set-Content -Path $sqlFile -Value $resetSql -Encoding UTF8
 
-if ($LASTEXITCODE -ne 0) {
+$outFile = [System.IO.Path]::GetTempFileName()
+$errFile = [System.IO.Path]::GetTempFileName()
+$argList = @('-h', $DB_HOST, '-p', $DB_PORT, '-U', $DB_USER, '-d', $DB_NAME, '-v', 'ON_ERROR_STOP=1', '-f', $sqlFile)
+$proc = Start-Process -FilePath $PsqlExe -ArgumentList $argList -RedirectStandardOutput $outFile -RedirectStandardError $errFile -NoNewWindow -Wait -PassThru
+$exitCode = $proc.ExitCode
+$outText = ''
+$errText = ''
+try { $outText = Get-Content -Raw -Path $outFile -ErrorAction SilentlyContinue } catch { }
+try { $errText = Get-Content -Raw -Path $errFile -ErrorAction SilentlyContinue } catch { }
+$resetOutput = @()
+if ($outText) { $resetOutput += $outText -split "`n" }
+if ($errText) { $resetOutput += $errText -split "`n" }
+Remove-Item -Path $outFile,$errFile -ErrorAction SilentlyContinue
+Remove-Item -Path $sqlFile -ErrorAction SilentlyContinue
+
+if ($exitCode -ne 0) {
     Write-Fail "Failed to reset primary-key sequences dynamically."
-    $resetOutput | ForEach-Object { Write-Host $_ }
+    Write-Info "psql exit code: $exitCode"
+    if ($resetOutput) {
+        Write-Info "psql output:"; $resetOutput | ForEach-Object { Write-Host $_ }
+    }
+    if ($error.Count -gt 0) {
+        Write-Info "PowerShell error[0]:"; $error[0] | ForEach-Object { Write-Host $_ }
+    }
     exit 1
 }
 
-if ($resetOutput) {
-    $resetOutput | ForEach-Object { Write-Host $_ }
-}
+Write-Info "psql exit code: $exitCode"
+if ($resetOutput) { Write-Info "psql output:"; $resetOutput | ForEach-Object { Write-Host $_ } }
 
 Write-Ok "Primary-key sequences reset dynamically for all sequence-backed tables."
 
