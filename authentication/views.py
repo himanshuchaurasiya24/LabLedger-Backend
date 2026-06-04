@@ -16,7 +16,7 @@ from authentication.serializers import (
     StaffAccountSerializer,
     UserPasswordChangeSerializer
 )
-from center_detail.serializers import ActiveSubscription, ActiveSubscriptionSerializer, CenterDetail, CenterDetailListSerializer, CenterDetailSerializer, CenterDetailTokenSerializer, MinimalCenterDetailSerializer, SubscriptionPlan, SubscriptionPlanSerializer, date, serializers, timedelta, transaction
+from center_detail.serializers import CenterDetailTokenSerializer
 from diagnosis.views import CenterDetailFilterMixin, IsAdminUser
 from diagnosis.models import AuditLog
 
