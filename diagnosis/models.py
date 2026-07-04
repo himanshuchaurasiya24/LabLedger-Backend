@@ -40,14 +40,7 @@ BILL_STATUS_CHOICES = [
     ('Partially Paid', 'Partially Paid'),
     ('Unpaid', 'Unpaid'),
 ]
-CATEGORY_CHOICES = [
-    ('X-Ray', 'X-Ray'),
-    ('Pathology', 'Pathology'),
-    ('ECG', 'ECG'),
-    ('Ultrasound', 'Ultrasound'),
-    ('Franchise Lab', 'Franchise Lab'),
-    ('Others', 'Others'),
-]
+
 phone_regex = RegexValidator(
     regex=r'^\+?[0-9]{1,15}$',
     message='Invalid phone number. Please enter a valid phone number.'
@@ -489,8 +482,6 @@ class PatientReport(models.Model):
 class SampleTestReport(models.Model):
     category = models.CharField(
         max_length=50,
-        choices=CATEGORY_CHOICES,
-        null=True
     )
     diagnosis_name = models.CharField(max_length=255)
     sample_report_file = models.FileField(
